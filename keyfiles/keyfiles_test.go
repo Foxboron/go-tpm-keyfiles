@@ -17,13 +17,24 @@ func mustOpen(s string) []byte {
 
 func TestParse(t *testing.T) {
 	for n, tt := range []struct {
-		f []byte
+		name string
+		f    []byte
 	}{
 		{
-			f: mustOpen("./testdata/rsa-key.tpm"),
+			name: "plain rsa key",
+			f:    mustOpen("./testdata/rsa-key.tpm"),
 		},
 		{
-			f: mustOpen("./testdata/rsa-tpm-password.tpm"),
+			name: "plain rsa key with password",
+			f:    mustOpen("./testdata/rsa-tpm-password.tpm"),
+		},
+		{
+			name: "p256 with authvalue",
+			f:    mustOpen("./testdata/p256-authvalue.tpm"),
+		},
+		{
+			name: "sealed key",
+			f:    mustOpen("./testdata/skey.tpm"),
 		},
 	} {
 		t.Run(fmt.Sprintf("%d", n), func(t *testing.T) {

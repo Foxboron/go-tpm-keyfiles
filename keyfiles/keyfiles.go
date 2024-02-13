@@ -5,6 +5,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"unicode/utf8"
 
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
@@ -51,16 +52,118 @@ type TPMPolicy struct {
 	commandPolicy []byte
 }
 
-func ParseTPMPolicy(der *cryptobyte.String) ([]*TPMPolicy, error) {
-	return nil, nil
+func parseTPMPolicy(der *cryptobyte.String) ([]*TPMPolicy, error) {
+	var tpmpolicies []*TPMPolicy
+	var policy cryptobyte.String
+	var hasPolicy bool
+
+	//   policy      [1] EXPLICIT SEQUENCE OF TPMPolicy OPTIONAL,
+	if !der.ReadOptionalASN1(&policy, &hasPolicy, asn1.Tag(1).ContextSpecific().Constructed()) {
+		return []*TPMPolicy{}, errors.New("should have policy, failed reading")
+	}
+	if !hasPolicy {
+		return []*TPMPolicy{}, nil
+	}
+
+	// read outer sequence
+	var policySequence cryptobyte.String
+	if !policy.ReadASN1(&policySequence, asn1.SEQUENCE) {
+		return nil, errors.New("malformed policy sequence")
+	}
+
+	if !policySequence.Empty() {
+		// TPMPolicy ::= SEQUENCE
+		var policyBytes cryptobyte.String
+		if !policySequence.ReadASN1(&policyBytes, asn1.SEQUENCE) {
+			return nil, errors.New("malformed policy sequence")
+		}
+
+		//   commandCode   [0] EXPLICIT INTEGER,
+		var ccBytes cryptobyte.String
+		if !policyBytes.ReadASN1(&ccBytes, asn1.Tag(0).ContextSpecific().Constructed()) {
+			return nil, errors.New("strip tag from commandCode")
+		}
+
+		var tpmpolicy TPMPolicy
+		if !ccBytes.ReadASN1Integer(&tpmpolicy.commandCode) {
+			return nil, errors.New("malformed policy commandCode")
+		}
+
+		//   commandPolicy [1] EXPLICIT OCTET STRING
+		var cpBytes cryptobyte.String
+		if !policyBytes.ReadASN1(&cpBytes, asn1.Tag(1).ContextSpecific().Constructed()) {
+			return nil, errors.New("strip tag from commandPolicy")
+		}
+
+		if !cpBytes.ReadASN1Bytes(&tpmpolicy.commandPolicy, asn1.OCTET_STRING) {
+			return nil, errors.New("malformed policy commandPolicy")
+		}
+		tpmpolicies = append(tpmpolicies, &tpmpolicy)
+	}
+	return tpmpolicies, nil
 }
 
 type TPMAuthPolicy struct {
-	name   []byte
-	policy []byte
+	name   string
+	policy []*TPMPolicy
 }
 
-func ParseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
+func parseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
+	var authPolicy []*TPMAuthPolicy
+	var sAuthPolicy cryptobyte.String
+	var hasAuthPolicy bool
+
+	//   authPolicy  [3] EXPLICIT SEQUENCE OF TPMAuthPolicy OPTIONAL,
+	if !der.ReadOptionalASN1(&sAuthPolicy, &hasAuthPolicy, asn1.Tag(3).ContextSpecific().Constructed()) {
+		return nil, errors.New("should have authPolicy, failed reading")
+	}
+	if !hasAuthPolicy {
+		return authPolicy, nil
+	}
+
+	// read outer sequence
+	var authPolicySequence cryptobyte.String
+	if !sAuthPolicy.ReadASN1(&authPolicySequence, asn1.SEQUENCE) {
+		return nil, errors.New("malformed auth policy sequence")
+	}
+
+	if !authPolicySequence.Empty() {
+		// TPMAuthPolicy ::= SEQUENCE
+		var authPolicyBytes cryptobyte.String
+		if !authPolicySequence.ReadASN1(&authPolicyBytes, asn1.SEQUENCE) {
+			return nil, errors.New("malformed auth policy sequence")
+		}
+
+		var tpmAuthPolicy TPMAuthPolicy
+
+		//   name    [0] EXPLICIT UTF8String OPTIONAL,
+		var nameBytes cryptobyte.String
+		var hasName bool
+		if !authPolicyBytes.ReadOptionalASN1(&nameBytes, &hasName, asn1.Tag(0).ContextSpecific().Constructed()) {
+			return nil, errors.New("strip tag from commandCode")
+		}
+		if hasName {
+			var nameB cryptobyte.String
+			if !nameBytes.ReadASN1(&nameB, asn1.UTF8String) {
+				return nil, errors.New("malformed utf8string in auth policy name")
+			}
+			if !utf8.Valid(nameB) {
+				return nil, errors.New("invalid utf8 bytes in name of auth policy")
+			}
+			tpmAuthPolicy.name = string(nameB)
+		}
+
+		//   policy  [1] EXPLICIT SEQUENCE OF TPMPolicy
+		tpmpolicies, err := parseTPMPolicy(&authPolicyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed parsing tpm policies in auth policy: %v", err)
+		}
+		if len(tpmpolicies) == 0 {
+			return nil, errors.New("tpm policies in auth policy is empty")
+		}
+		tpmAuthPolicy.policy = tpmpolicies
+	}
+
 	return nil, nil
 }
 
@@ -129,19 +232,11 @@ func Parse(b []byte) (*TPMKey, error) {
 		tkey.emptyAuth = auth
 	}
 
-	//   policy      [1] EXPLICIT SEQUENCE OF TPMPolicy OPTIONAL,
-	var sPolicy cryptobyte.String
-	var hasPolicy bool
-	if !s.ReadOptionalASN1(&sPolicy, &hasPolicy, asn1.Tag(1).ContextSpecific().Constructed()) {
-		return nil, errors.New("should have policy, failed reading")
+	policy, err := parseTPMPolicy(&s)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading TPMPolicy: %v", err)
 	}
-	if hasPolicy {
-		policy, err := ParseTPMPolicy(&sPolicy)
-		if err != nil {
-			return nil, fmt.Errorf("failed reading TPMPolicy: %v", err)
-		}
-		tkey.policy = policy
-	}
+	tkey.policy = policy
 
 	//   secret      [2] EXPLICIT OCTET STRING OPTIONAL,
 	var sSecret cryptobyte.String
@@ -157,19 +252,11 @@ func Parse(b []byte) (*TPMKey, error) {
 		tkey.secret = secret
 	}
 
-	//   authPolicy  [3] EXPLICIT SEQUENCE OF TPMAuthPolicy OPTIONAL,
-	var sAuthPolicy cryptobyte.String
-	var hasAuthPolicy bool
-	if !s.ReadOptionalASN1(&sAuthPolicy, &hasAuthPolicy, asn1.Tag(3).ContextSpecific().Constructed()) {
-		return nil, errors.New("should have authPolicy, failed reading")
+	authPolicy, err := parseTPMAuthPolicy(&s)
+	if err != nil {
+		return nil, fmt.Errorf("failed reading TPMAuthPolicy: %v", err)
 	}
-	if hasAuthPolicy {
-		authPolicy, err := ParseTPMAuthPolicy(&sAuthPolicy)
-		if err != nil {
-			return nil, fmt.Errorf("failed reading TPMAuthPolicy: %v", err)
-		}
-		tkey.authPolicy = authPolicy
-	}
+	tkey.authPolicy = authPolicy
 
 	//   parent      INTEGER,
 	var parent int
@@ -198,11 +285,6 @@ func Parse(b []byte) (*TPMKey, error) {
 // TPMPolicy ::= SEQUENCE {
 //   commandCode   [0] EXPLICIT INTEGER,
 //   commandPolicy [1] EXPLICIT OCTET STRING
-// }
-
-// TPMAuthPolicy ::= SEQUENCE {
-//   name    [0] EXPLICIT UTF8String OPTIONAL,
-//   policy  [1] EXPLICIT SEQUENCE OF TPMPolicy
 // }
 
 // }
