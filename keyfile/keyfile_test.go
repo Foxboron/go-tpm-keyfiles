@@ -1,4 +1,4 @@
-package keyfiles
+package keyfile
 
 import (
 	"fmt"
