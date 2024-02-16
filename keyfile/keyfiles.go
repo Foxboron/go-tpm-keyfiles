@@ -52,16 +52,17 @@ type TPMPolicy struct {
 	commandPolicy []byte
 }
 
+func readOptional(der *cryptobyte.String, tag int) (out cryptobyte.String, ok bool) {
+	der.ReadOptionalASN1(&out, &ok, asn1.Tag(tag).ContextSpecific().Constructed())
+	return
+}
+
 func parseTPMPolicy(der *cryptobyte.String) ([]*TPMPolicy, error) {
 	var tpmpolicies []*TPMPolicy
-	var policy cryptobyte.String
-	var hasPolicy bool
 
 	//   policy      [1] EXPLICIT SEQUENCE OF TPMPolicy OPTIONAL,
-	if !der.ReadOptionalASN1(&policy, &hasPolicy, asn1.Tag(1).ContextSpecific().Constructed()) {
-		return []*TPMPolicy{}, errors.New("should have policy, failed reading")
-	}
-	if !hasPolicy {
+	policy, ok := readOptional(der, 1)
+	if !ok {
 		return []*TPMPolicy{}, nil
 	}
 
@@ -111,13 +112,10 @@ type TPMAuthPolicy struct {
 func parseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
 	var authPolicy []*TPMAuthPolicy
 	var sAuthPolicy cryptobyte.String
-	var hasAuthPolicy bool
 
 	//   authPolicy  [3] EXPLICIT SEQUENCE OF TPMAuthPolicy OPTIONAL,
-	if !der.ReadOptionalASN1(&sAuthPolicy, &hasAuthPolicy, asn1.Tag(3).ContextSpecific().Constructed()) {
-		return nil, errors.New("should have authPolicy, failed reading")
-	}
-	if !hasAuthPolicy {
+	sAuthPolicy, ok := readOptional(der, 3)
+	if !ok {
 		return authPolicy, nil
 	}
 
@@ -137,12 +135,8 @@ func parseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
 		var tpmAuthPolicy TPMAuthPolicy
 
 		//   name    [0] EXPLICIT UTF8String OPTIONAL,
-		var nameBytes cryptobyte.String
-		var hasName bool
-		if !authPolicyBytes.ReadOptionalASN1(&nameBytes, &hasName, asn1.Tag(0).ContextSpecific().Constructed()) {
-			return nil, errors.New("strip tag from commandCode")
-		}
-		if hasName {
+		nameBytes, ok := readOptional(&authPolicyBytes, 0)
+		if ok {
 			var nameB cryptobyte.String
 			if !nameBytes.ReadASN1(&nameB, asn1.UTF8String) {
 				return nil, errors.New("malformed utf8string in auth policy name")
@@ -219,14 +213,9 @@ func Parse(b []byte) (*TPMKey, error) {
 	}
 
 	//   emptyAuth   [0] EXPLICIT BOOLEAN OPTIONAL,
-	var emptyAuth cryptobyte.String
-	var hasEmptyAuth bool
-	if !s.ReadOptionalASN1(&emptyAuth, &hasEmptyAuth, asn1.Tag(0).ContextSpecific().Constructed()) {
-		return nil, errors.New("should have emptyAuth, failed reading")
-	}
-	if hasEmptyAuth {
+	if emptyAuthbytes, ok := readOptional(&s, 0); ok {
 		var auth bool
-		if !emptyAuth.ReadASN1Boolean(&auth) {
+		if !emptyAuthbytes.ReadASN1Boolean(&auth) {
 			return nil, errors.New("no emptyAuth bool")
 		}
 		tkey.emptyAuth = auth
@@ -239,14 +228,9 @@ func Parse(b []byte) (*TPMKey, error) {
 	tkey.policy = policy
 
 	//   secret      [2] EXPLICIT OCTET STRING OPTIONAL,
-	var sSecret cryptobyte.String
-	var hasSecret bool
-	if !s.ReadOptionalASN1(&sSecret, &hasSecret, asn1.Tag(2).ContextSpecific().Constructed()) {
-		return nil, errors.New("should have secret, failed reading")
-	}
-	if hasSecret {
+	if secretbytes, ok := readOptional(&s, 2); ok {
 		var secret cryptobyte.String
-		if !sSecret.ReadASN1(&secret, asn1.OCTET_STRING) {
+		if !secretbytes.ReadASN1(&secret, asn1.OCTET_STRING) {
 			return nil, errors.New("could not parse secret")
 		}
 		tkey.secret = secret
@@ -281,10 +265,3 @@ func Parse(b []byte) (*TPMKey, error) {
 
 	return &tkey, nil
 }
-
-// TPMPolicy ::= SEQUENCE {
-//   commandCode   [0] EXPLICIT INTEGER,
-//   commandPolicy [1] EXPLICIT OCTET STRING
-// }
-
-// }
