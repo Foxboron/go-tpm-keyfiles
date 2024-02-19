@@ -34,13 +34,17 @@ var (
 	ErrNotTPMKey = errors.New("not a TSS2 PRIVATE KEY")
 )
 
+var (
+	pemType = "TSS2 PRIVATE KEY"
+)
+
 func unwrapPEM(p []byte) ([]byte, error) {
 	block, _ := pem.Decode(p)
 	if block == nil {
 		return nil, fmt.Errorf("not an armored key")
 	}
 	switch block.Type {
-	case "TSS2 PRIVATE KEY":
+	case pemType:
 		return block.Bytes, nil
 	default:
 		return nil, ErrNotTPMKey
@@ -72,7 +76,7 @@ func parseTPMPolicy(der *cryptobyte.String) ([]*TPMPolicy, error) {
 		return nil, errors.New("malformed policy sequence")
 	}
 
-	if !policySequence.Empty() {
+	for !policySequence.Empty() {
 		// TPMPolicy ::= SEQUENCE
 		var policyBytes cryptobyte.String
 		if !policySequence.ReadASN1(&policyBytes, asn1.SEQUENCE) {
@@ -125,7 +129,7 @@ func parseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
 		return nil, errors.New("malformed auth policy sequence")
 	}
 
-	if !authPolicySequence.Empty() {
+	for !authPolicySequence.Empty() {
 		// TPMAuthPolicy ::= SEQUENCE
 		var authPolicyBytes cryptobyte.String
 		if !authPolicySequence.ReadASN1(&authPolicyBytes, asn1.SEQUENCE) {
@@ -156,9 +160,11 @@ func parseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
 			return nil, errors.New("tpm policies in auth policy is empty")
 		}
 		tpmAuthPolicy.policy = tpmpolicies
+
+		authPolicy = append(authPolicy, &tpmAuthPolicy)
 	}
 
-	return nil, nil
+	return authPolicy, nil
 }
 
 type TPMKey struct {
@@ -264,4 +270,90 @@ func Parse(b []byte) (*TPMKey, error) {
 	tkey.Privkey = privkey
 
 	return &tkey, nil
+}
+
+func Marshal(key *TPMKey) ([]byte, error) {
+	var b cryptobyte.Builder
+
+	b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
+
+		b.AddASN1ObjectIdentifier(key.keytype)
+
+		if key.emptyAuth {
+			b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+				b.AddASN1Boolean(true)
+			})
+		}
+
+		if len(key.policy) != 0 {
+			b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+				b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
+					for _, policy := range key.policy {
+						b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
+							b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+								b.AddASN1Int64(int64(policy.commandCode))
+							})
+							b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+								b.AddASN1OctetString(policy.commandPolicy)
+							})
+						})
+					}
+				})
+			})
+		}
+
+		if len(key.secret) != 0 {
+			b.AddASN1(asn1.Tag(2).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+				b.AddASN1OctetString(key.secret)
+			})
+		}
+
+		if len(key.authPolicy) != 0 {
+			b.AddASN1(asn1.Tag(3).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+				b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
+					for _, authpolicy := range key.authPolicy {
+						b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
+							if authpolicy.name != "" {
+								b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+									b.AddASN1(asn1.UTF8String, func(b *cryptobyte.Builder) {
+										// TODO: Is this correct?
+										b.AddBytes([]byte(authpolicy.name))
+									})
+								})
+							}
+							// Copy of the policy writing
+							b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+								b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
+									for _, policy := range authpolicy.policy {
+										b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
+											b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+												b.AddASN1Int64(int64(policy.commandCode))
+											})
+											b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+												b.AddASN1OctetString(policy.commandPolicy)
+											})
+										})
+									}
+								})
+							})
+						})
+					}
+				})
+			})
+		}
+
+		b.AddASN1Int64(int64(key.Parent))
+		b.AddASN1OctetString(key.Pubkey)
+		b.AddASN1OctetString(key.Privkey)
+	})
+
+	bytes, err := b.Bytes()
+	if err != nil {
+		return nil, err
+	}
+
+	return pem.EncodeToMemory(&pem.Block{
+		Type:  pemType,
+		Bytes: bytes,
+	}), nil
 }

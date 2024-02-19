@@ -1,6 +1,7 @@
 package keyfile
 
 import (
+	"bytes"
 	"fmt"
 	"log"
 	"os"
@@ -38,9 +39,18 @@ func TestParse(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%d", n), func(t *testing.T) {
-			_, err := Parse(tt.f)
+			k, err := Parse(tt.f)
 			if err != nil {
 				t.Fatalf("failed parsing: %v", err)
+			}
+
+			b, err := Marshal(k)
+			if err != nil {
+				t.Fatalf("failed marshalling key: %v", err)
+			}
+			if !bytes.Equal(b, tt.f) {
+				os.WriteFile(fmt.Sprintf("%d-dump.pem", n), b, 0644)
+				t.Fatalf("not equal")
 			}
 		})
 	}
