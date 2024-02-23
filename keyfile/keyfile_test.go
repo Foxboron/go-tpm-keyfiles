@@ -39,12 +39,12 @@ func TestParse(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%d", n), func(t *testing.T) {
-			k, err := Parse(tt.f)
+			k, err := Decode(tt.f)
 			if err != nil {
 				t.Fatalf("failed parsing: %v", err)
 			}
 
-			b, err := Marshal(k)
+			b, err := Encode(k)
 			if err != nil {
 				t.Fatalf("failed marshalling key: %v", err)
 			}
