@@ -22,7 +22,7 @@ type TPMKey struct {
 	policy      []*TPMPolicy
 	secret      []byte
 	authPolicy  []*TPMAuthPolicy
-	description []byte
+	description string
 	Parent      tpm2.TPMHandle
 	Pubkey      tpm2.TPMTPublic
 	Privkey     tpm2.TPM2BPrivate
@@ -40,11 +40,11 @@ func (t *TPMKey) KeyAlgo() tpm2.TPMAlgID {
 	return t.Pubkey.Type
 }
 
-func (t *TPMKey) SetDescription(b []byte) {
-	t.description = b
+func (t *TPMKey) SetDescription(s string) {
+	t.description = s
 }
 
-func (t *TPMKey) Description() []byte {
+func (t *TPMKey) Description() string {
 	return t.description
 }
 

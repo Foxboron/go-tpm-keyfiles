@@ -205,10 +205,13 @@ func Parse(b []byte) (*TPMKey, error) {
 	//   description  [4] EXPLICIT OCTET STRING OPTIONAL,
 	if descriptionBytes, ok := readOptional(&s, 4); ok {
 		var description cryptobyte.String
-		if !descriptionBytes.ReadASN1(&description, asn1.OCTET_STRING) {
-			return nil, errors.New("could not parse secret")
+		if !descriptionBytes.ReadASN1(&description, asn1.UTF8String) {
+			return nil, errors.New("could not parse description bytes")
 		}
-		tkey.description = description
+		if !utf8.Valid(description) {
+			return nil, errors.New("description is not a valid UTF8 string")
+		}
+		tkey.description = string(description)
 	}
 
 	//   parent      INTEGER,
