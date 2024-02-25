@@ -321,6 +321,14 @@ func Marshal(key *TPMKey) ([]byte, error) {
 			})
 		}
 
+		if len(key.description) != 0 {
+			b.AddASN1(asn1.Tag(4).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
+				b.AddASN1(asn1.UTF8String, func(b *cryptobyte.Builder) {
+					b.AddBytes([]byte(key.description))
+				})
+			})
+		}
+
 		b.AddASN1Int64(int64(key.Parent))
 		pubbytes := tpm2.New2B(key.Pubkey)
 		b.AddASN1OctetString(tpm2.Marshal(pubbytes))
