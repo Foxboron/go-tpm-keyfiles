@@ -1,6 +1,6 @@
 package keyfile
 
-import "github.com/google/go-tpm/tpmutil"
+import "github.com/google/go-tpm/tpm2"
 
 var (
 	TPM_HT_NV_INDEX       uint32 = 0x01
@@ -10,6 +10,6 @@ var (
 	TPM_HT_PERSISTENT     uint32 = 0x81
 )
 
-func IsMSO(handle tpmutil.Handle, mso uint32) bool {
+func IsMSO(handle tpm2.TPMHandle, mso uint32) bool {
 	return (uint32(handle) >> 24) == mso
 }
