@@ -48,6 +48,10 @@ func (t *TPMKey) Description() string {
 	return t.description
 }
 
+func (t *TPMKey) Bytes() []byte {
+	return Encode(t)
+}
+
 func NewLoadableKey(public tpm2.TPM2BPublic, private tpm2.TPM2BPrivate, parent tpm2.TPMHandle, emptyAuth bool) (*TPMKey, error) {
 	var key TPMKey
 	key.keytype = OIDLoadableKey

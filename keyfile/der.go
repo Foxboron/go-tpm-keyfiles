@@ -251,7 +251,7 @@ func Parse(b []byte) (*TPMKey, error) {
 	return &tkey, nil
 }
 
-func Marshal(key *TPMKey) ([]byte, error) {
+func Marshal(key *TPMKey) []byte {
 	var b cryptobyte.Builder
 
 	b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
@@ -335,7 +335,7 @@ func Marshal(key *TPMKey) ([]byte, error) {
 		b.AddASN1OctetString(tpm2.Marshal(key.Privkey))
 	})
 
-	return b.Bytes()
+	return b.BytesOrPanic()
 }
 
 // Errors
@@ -347,15 +347,11 @@ var (
 	pemType = "TSS2 PRIVATE KEY"
 )
 
-func Encode(key *TPMKey) ([]byte, error) {
-	bytes, err := Marshal(key)
-	if err != nil {
-		return nil, err
-	}
+func Encode(key *TPMKey) []byte {
 	return pem.EncodeToMemory(&pem.Block{
 		Type:  pemType,
-		Bytes: bytes,
-	}), nil
+		Bytes: Marshal(key),
+	})
 }
 
 func Decode(b []byte) (*TPMKey, error) {
