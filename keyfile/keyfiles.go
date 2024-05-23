@@ -24,12 +24,16 @@ type TPMKey struct {
 	authPolicy  []*TPMAuthPolicy
 	description string
 	Parent      tpm2.TPMHandle
-	Pubkey      tpm2.TPMTPublic
+	Pubkey      tpm2.TPM2BPublic
 	Privkey     tpm2.TPM2BPrivate
 }
 
 func (t *TPMKey) HasSinger() bool {
-	return t.Pubkey.ObjectAttributes.SignEncrypt
+	pub, err := t.Pubkey.Contents()
+	if err != nil {
+		panic("can't serialize public key")
+	}
+	return pub.ObjectAttributes.SignEncrypt
 }
 
 func (t *TPMKey) HasAuth() bool {
@@ -37,7 +41,11 @@ func (t *TPMKey) HasAuth() bool {
 }
 
 func (t *TPMKey) KeyAlgo() tpm2.TPMAlgID {
-	return t.Pubkey.Type
+	pub, err := t.Pubkey.Contents()
+	if err != nil {
+		panic("can't serialize public key")
+	}
+	return pub.Type
 }
 
 func (t *TPMKey) SetDescription(s string) {
@@ -57,11 +65,7 @@ func NewLoadableKey(public tpm2.TPM2BPublic, private tpm2.TPM2BPrivate, parent t
 	key.keytype = OIDLoadableKey
 	key.emptyAuth = emptyAuth
 
-	pub, err := public.Contents()
-	if err != nil {
-		return nil, err
-	}
-	key.Pubkey = *pub
+	key.Pubkey = public
 	key.Privkey = private
 
 	key.Parent = parent

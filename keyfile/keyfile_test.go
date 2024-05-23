@@ -70,7 +70,7 @@ func TestEncodeDecode(t *testing.T) {
 				emptyAuth:   true,
 				description: "test",
 				Parent:      tpm2.TPMHandle(0x40000001),
-				Pubkey:      tpm2.ECCSRKTemplate,
+				Pubkey:      tpm2.New2B(tpm2.ECCSRKTemplate),
 				Privkey:     must2BPrivate([]byte("some data")),
 			},
 		},

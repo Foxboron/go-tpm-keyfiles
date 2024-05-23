@@ -231,11 +231,7 @@ func Parse(b []byte) (*TPMKey, error) {
 	if err != nil {
 		return nil, errors.New("could not parse public section of key 1")
 	}
-	publicT, err := public.Contents()
-	if err != nil {
-		return nil, errors.New("could not parse public section of key 2")
-	}
-	tkey.Pubkey = *publicT
+	tkey.Pubkey = *public
 
 	//   privkey     OCTET STRING
 	var privkey cryptobyte.String
@@ -330,8 +326,7 @@ func Marshal(key *TPMKey) []byte {
 		}
 
 		b.AddASN1Int64(int64(key.Parent))
-		pubbytes := tpm2.New2B(key.Pubkey)
-		b.AddASN1OctetString(tpm2.Marshal(pubbytes))
+		b.AddASN1OctetString(tpm2.Marshal(key.Pubkey))
 		b.AddASN1OctetString(tpm2.Marshal(key.Privkey))
 	})
 
