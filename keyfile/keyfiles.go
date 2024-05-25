@@ -1,7 +1,13 @@
 package keyfile
 
 import (
+	"bytes"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
 	encasn1 "encoding/asn1"
+	"fmt"
+	"math/big"
 
 	"github.com/google/go-tpm/tpm2"
 )
@@ -63,6 +69,71 @@ func (t *TPMKey) Bytes() []byte {
 	}
 	return b.Bytes()
 }
+
+func (t *TPMKey) ecdsaPubKey() (*ecdsa.PublicKey, error) {
+	pub, err := t.Pubkey.Contents()
+	if err != nil {
+		return nil, fmt.Errorf("can't serialize public key contents")
+	}
+	ecc, err := pub.Unique.ECC()
+	if err != nil {
+		return nil, err
+	}
+
+	eccdeets, err := pub.Parameters.ECCDetail()
+	if err != nil {
+		return nil, err
+	}
+
+	var ecdsaKey *ecdsa.PublicKey
+
+	switch eccdeets.CurveID {
+	case tpm2.TPMECCNistP256:
+		ecdsaKey = &ecdsa.PublicKey{Curve: elliptic.P256(),
+			X: big.NewInt(0).SetBytes(ecc.X.Buffer),
+			Y: big.NewInt(0).SetBytes(ecc.Y.Buffer),
+		}
+	case tpm2.TPMECCNistP384:
+		ecdsaKey = &ecdsa.PublicKey{Curve: elliptic.P384(),
+			X: big.NewInt(0).SetBytes(ecc.X.Buffer),
+			Y: big.NewInt(0).SetBytes(ecc.Y.Buffer),
+		}
+	case tpm2.TPMECCNistP521:
+		ecdsaKey = &ecdsa.PublicKey{Curve: elliptic.P521(),
+			X: big.NewInt(0).SetBytes(ecc.X.Buffer),
+			Y: big.NewInt(0).SetBytes(ecc.Y.Buffer),
+		}
+	}
+
+	return ecdsaKey, nil
+}
+
+func (t *TPMKey) rsaPubKey() (*rsa.PublicKey, error) {
+	pub, err := t.Pubkey.Contents()
+	if err != nil {
+		return nil, fmt.Errorf("can't serialize public key contents")
+	}
+	rsaDetail, err := pub.Parameters.RSADetail()
+	if err != nil {
+		return nil, fmt.Errorf("failed getting rsa details: %v", err)
+	}
+	rsaUnique, err := pub.Unique.RSA()
+	if err != nil {
+		return nil, fmt.Errorf("failed getting unique rsa: %v", err)
+	}
+
+	return tpm2.RSAPub(rsaDetail, rsaUnique)
+}
+
+// PublicKey returns the ecdsa.Publickey or rsa.Publickey of the TPMKey
+func (t *TPMKey) PublicKey() (any, error) {
+	switch t.KeyAlgo() {
+	case tpm2.TPMAlgECC:
+		return t.ecdsaPubKey()
+	case tpm2.TPMAlgRSA:
+		return t.rsaPubKey()
+	}
+	return nil, fmt.Errorf("no public key")
 }
 
 func NewLoadableKey(public tpm2.TPM2BPublic, private tpm2.TPM2BPrivate, parent tpm2.TPMHandle, emptyAuth bool) (*TPMKey, error) {
