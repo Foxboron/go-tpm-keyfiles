@@ -46,8 +46,7 @@ func TestParse(t *testing.T) {
 				t.Fatalf("failed parsing: %v", err)
 			}
 
-			b := Encode(k)
-			if !bytes.Equal(b, tt.f) {
+			if !bytes.Equal(k.Bytes(), tt.f) {
 				t.Fatalf("not equal")
 			}
 		})
@@ -76,9 +75,7 @@ func TestEncodeDecode(t *testing.T) {
 		},
 	} {
 		t.Run(fmt.Sprintf("%d", n), func(t *testing.T) {
-			b := Encode(tt.TPMKey)
-
-			key, err := Decode(b)
+			key, err := Decode(tt.TPMKey.Bytes())
 			if err != nil {
 				t.Fatalf("failed decoding key: %v", err)
 			}

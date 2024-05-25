@@ -5,6 +5,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"unicode/utf8"
 
 	"github.com/google/go-tpm/tpm2"
@@ -342,8 +343,8 @@ var (
 	pemType = "TSS2 PRIVATE KEY"
 )
 
-func Encode(key *TPMKey) []byte {
-	return pem.EncodeToMemory(&pem.Block{
+func Encode(out io.Writer, key *TPMKey) error {
+	return pem.Encode(out, &pem.Block{
 		Type:  pemType,
 		Bytes: Marshal(key),
 	})

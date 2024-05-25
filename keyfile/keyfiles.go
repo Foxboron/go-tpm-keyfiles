@@ -57,7 +57,12 @@ func (t *TPMKey) Description() string {
 }
 
 func (t *TPMKey) Bytes() []byte {
-	return Encode(t)
+	var b bytes.Buffer
+	if err := Encode(&b, t); err != nil {
+		return nil
+	}
+	return b.Bytes()
+}
 }
 
 func NewLoadableKey(public tpm2.TPM2BPublic, private tpm2.TPM2BPrivate, parent tpm2.TPMHandle, emptyAuth bool) (*TPMKey, error) {
