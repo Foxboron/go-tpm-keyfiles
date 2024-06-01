@@ -36,6 +36,28 @@ type TPMKey struct {
 	Privkey     tpm2.TPM2BPrivate
 }
 
+func NewTPMKey(fn ...TPMKeyOption) *TPMKey {
+	var key TPMKey
+
+	// Set defaults
+	key.AddOptions(
+		// We always start of with assuming this key shouldn't have an auth
+		WithSecret([]byte(nil)),
+		// Start out with setting the Owner as parent
+		WithParent(tpm2.TPMRHOwner),
+	)
+
+	key.AddOptions(fn...)
+	return &key
+}
+
+func (t *TPMKey) AddOptions(fn ...TPMKeyOption) {
+	// Run over TPMKeyFn
+	for _, f := range fn {
+		f(t)
+	}
+}
+
 func (t *TPMKey) HasSinger() bool {
 	pub, err := t.Pubkey.Contents()
 	if err != nil {
