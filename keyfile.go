@@ -144,3 +144,21 @@ func (t *TPMKey) Signer(tpm transport.TPMCloser, ownerAuth, auth []byte) (crypto
 		func(_ *TPMKey) ([]byte, error) { return auth, nil },
 	), nil
 }
+
+func (t *TPMKey) Verify(alg crypto.Hash, hashed []byte, sig []byte) (bool, error) {
+	pubkey, err := t.PublicKey()
+	if err != nil {
+		return false, fmt.Errorf("failed getting pubkey: %v", err)
+	}
+	switch pk := pubkey.(type) {
+	case *ecdsa.PublicKey:
+		if !ecdsa.VerifyASN1(pk, hashed[:], sig) {
+			return false, fmt.Errorf("invalid signature")
+		}
+	case *rsa.PublicKey:
+		if err := rsa.VerifyPKCS1v15(pk, alg, hashed[:], sig); err != nil {
+			return false, fmt.Errorf("signature verification failed: %v", err)
+		}
+	}
+	return true, nil
+}
