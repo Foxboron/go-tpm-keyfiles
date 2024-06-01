@@ -2,6 +2,7 @@ package keyfile
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -10,6 +11,7 @@ import (
 	"math/big"
 
 	"github.com/google/go-tpm/tpm2"
+	"github.com/google/go-tpm/tpm2/transport"
 )
 
 type TPMPolicy struct {
@@ -126,4 +128,19 @@ func (t *TPMKey) PublicKey() (any, error) {
 		return t.rsaPubKey()
 	}
 	return nil, fmt.Errorf("no public key")
+}
+
+// Wraps TPMSigner with some sane defaults
+// Use NewTPMSigner if you need more control of the parameters
+func (t *TPMKey) Signer(tpm transport.TPMCloser, ownerAuth, auth []byte) (crypto.Signer, error) {
+	if !t.HasSinger() {
+		// TODO: Implement support for signing with Decrypt operations
+		return nil, fmt.Errorf("does not have sign/encrypt attribute set")
+	}
+	return NewTPMKeySigner(
+		t,
+		func() ([]byte, error) { return ownerAuth, nil },
+		func() transport.TPMCloser { return tpm },
+		func(_ *TPMKey) ([]byte, error) { return auth, nil },
+	), nil
 }
