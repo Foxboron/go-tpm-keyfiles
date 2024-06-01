@@ -65,9 +65,9 @@ func TestEncodeDecode(t *testing.T) {
 	}{
 		{
 			&TPMKey{
-				keytype:     OIDLoadableKey,
-				emptyAuth:   true,
-				description: "test",
+				Keytype:     OIDLoadableKey,
+				EmptyAuth:   true,
+				Description: "test",
 				Parent:      tpm2.TPMHandle(0x40000001),
 				Pubkey:      tpm2.New2B(tpm2.ECCSRKTemplate),
 				Privkey:     must2BPrivate([]byte("some data")),
@@ -79,15 +79,15 @@ func TestEncodeDecode(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed decoding key: %v", err)
 			}
-			if !tt.TPMKey.keytype.Equal(key.keytype) {
+			if !tt.TPMKey.Keytype.Equal(key.Keytype) {
 				t.Fatalf("tpmkey keytype is not equal")
 			}
 
-			if tt.TPMKey.emptyAuth != key.emptyAuth {
+			if tt.TPMKey.EmptyAuth != key.EmptyAuth {
 				t.Fatalf("tpmkey emptyAuth is not equal")
 			}
 
-			if tt.TPMKey.description != key.description {
+			if tt.TPMKey.Description != key.Description {
 				t.Fatalf("tpmkey description is not equal")
 			}
 

@@ -65,7 +65,7 @@ func parseTPMPolicy(der *cryptobyte.String) ([]*TPMPolicy, error) {
 		}
 
 		var tpmpolicy TPMPolicy
-		if !ccBytes.ReadASN1Integer(&tpmpolicy.commandCode) {
+		if !ccBytes.ReadASN1Integer(&tpmpolicy.CommandCode) {
 			return nil, errors.New("malformed policy commandCode")
 		}
 
@@ -75,7 +75,7 @@ func parseTPMPolicy(der *cryptobyte.String) ([]*TPMPolicy, error) {
 			return nil, errors.New("strip tag from commandPolicy")
 		}
 
-		if !cpBytes.ReadASN1Bytes(&tpmpolicy.commandPolicy, asn1.OCTET_STRING) {
+		if !cpBytes.ReadASN1Bytes(&tpmpolicy.CommandPolicy, asn1.OCTET_STRING) {
 			return nil, errors.New("malformed policy commandPolicy")
 		}
 		tpmpolicies = append(tpmpolicies, &tpmpolicy)
@@ -118,7 +118,7 @@ func parseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
 			if !utf8.Valid(nameB) {
 				return nil, errors.New("invalid utf8 bytes in name of auth policy")
 			}
-			tpmAuthPolicy.name = string(nameB)
+			tpmAuthPolicy.Name = string(nameB)
 		}
 
 		//   policy  [1] EXPLICIT SEQUENCE OF TPMPolicy
@@ -129,7 +129,7 @@ func parseTPMAuthPolicy(der *cryptobyte.String) ([]*TPMAuthPolicy, error) {
 		if len(tpmpolicies) == 0 {
 			return nil, errors.New("tpm policies in auth policy is empty")
 		}
-		tpmAuthPolicy.policy = tpmpolicies
+		tpmAuthPolicy.Policy = tpmpolicies
 
 		authPolicy = append(authPolicy, &tpmAuthPolicy)
 	}
@@ -167,7 +167,7 @@ func Parse(b []byte) (*TPMKey, error) {
 	case oid.Equal(OIDSealedKey):
 		fallthrough
 	case oid.Equal(OIDOldLoadableKey):
-		tkey.keytype = oid
+		tkey.Keytype = oid
 	default:
 		return nil, errors.New("unknown key type")
 	}
@@ -178,14 +178,14 @@ func Parse(b []byte) (*TPMKey, error) {
 		if !emptyAuthbytes.ReadASN1Boolean(&auth) {
 			return nil, errors.New("no emptyAuth bool")
 		}
-		tkey.emptyAuth = auth
+		tkey.EmptyAuth = auth
 	}
 
 	policy, err := parseTPMPolicy(&s)
 	if err != nil {
 		return nil, fmt.Errorf("failed reading TPMPolicy: %v", err)
 	}
-	tkey.policy = policy
+	tkey.Policy = policy
 
 	//   secret      [2] EXPLICIT OCTET STRING OPTIONAL,
 	if secretbytes, ok := readOptional(&s, 2); ok {
@@ -193,7 +193,7 @@ func Parse(b []byte) (*TPMKey, error) {
 		if !secretbytes.ReadASN1(&secret, asn1.OCTET_STRING) {
 			return nil, errors.New("could not parse secret")
 		}
-		tkey.secret = secret
+		tkey.Secret = secret
 	}
 
 	//   authPolicy  [3] EXPLICIT SEQUENCE OF TPMAuthPolicy OPTIONAL,
@@ -201,7 +201,7 @@ func Parse(b []byte) (*TPMKey, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed reading TPMAuthPolicy: %v", err)
 	}
-	tkey.authPolicy = authPolicy
+	tkey.AuthPolicy = authPolicy
 
 	//   description  [4] EXPLICIT OCTET STRING OPTIONAL,
 	if descriptionBytes, ok := readOptional(&s, 4); ok {
@@ -212,7 +212,7 @@ func Parse(b []byte) (*TPMKey, error) {
 		if !utf8.Valid(description) {
 			return nil, errors.New("description is not a valid UTF8 string")
 		}
-		tkey.description = string(description)
+		tkey.Description = string(description)
 	}
 
 	//   parent      INTEGER,
@@ -253,24 +253,24 @@ func Marshal(key *TPMKey) []byte {
 
 	b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
 
-		b.AddASN1ObjectIdentifier(key.keytype)
+		b.AddASN1ObjectIdentifier(key.Keytype)
 
-		if key.emptyAuth {
+		if key.EmptyAuth {
 			b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
 				b.AddASN1Boolean(true)
 			})
 		}
 
-		if len(key.policy) != 0 {
+		if len(key.Policy) != 0 {
 			b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
 				b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
-					for _, policy := range key.policy {
+					for _, policy := range key.Policy {
 						b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
 							b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
-								b.AddASN1Int64(int64(policy.commandCode))
+								b.AddASN1Int64(int64(policy.CommandCode))
 							})
 							b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
-								b.AddASN1OctetString(policy.commandPolicy)
+								b.AddASN1OctetString(policy.CommandPolicy)
 							})
 						})
 					}
@@ -278,35 +278,35 @@ func Marshal(key *TPMKey) []byte {
 			})
 		}
 
-		if len(key.secret) != 0 {
+		if len(key.Secret) != 0 {
 			b.AddASN1(asn1.Tag(2).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
-				b.AddASN1OctetString(key.secret)
+				b.AddASN1OctetString(key.Secret)
 			})
 		}
 
-		if len(key.authPolicy) != 0 {
+		if len(key.AuthPolicy) != 0 {
 			b.AddASN1(asn1.Tag(3).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
 				b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
-					for _, authpolicy := range key.authPolicy {
+					for _, authpolicy := range key.AuthPolicy {
 						b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
-							if authpolicy.name != "" {
+							if authpolicy.Name != "" {
 								b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
 									b.AddASN1(asn1.UTF8String, func(b *cryptobyte.Builder) {
 										// TODO: Is this correct?
-										b.AddBytes([]byte(authpolicy.name))
+										b.AddBytes([]byte(authpolicy.Name))
 									})
 								})
 							}
 							// Copy of the policy writing
 							b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
 								b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
-									for _, policy := range authpolicy.policy {
+									for _, policy := range authpolicy.Policy {
 										b.AddASN1(asn1.SEQUENCE, func(b *cryptobyte.Builder) {
 											b.AddASN1(asn1.Tag(0).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
-												b.AddASN1Int64(int64(policy.commandCode))
+												b.AddASN1Int64(int64(policy.CommandCode))
 											})
 											b.AddASN1(asn1.Tag(1).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
-												b.AddASN1OctetString(policy.commandPolicy)
+												b.AddASN1OctetString(policy.CommandPolicy)
 											})
 										})
 									}
@@ -318,10 +318,10 @@ func Marshal(key *TPMKey) []byte {
 			})
 		}
 
-		if len(key.description) != 0 {
+		if len(key.Description) != 0 {
 			b.AddASN1(asn1.Tag(4).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
 				b.AddASN1(asn1.UTF8String, func(b *cryptobyte.Builder) {
-					b.AddBytes([]byte(key.description))
+					b.AddBytes([]byte(key.Description))
 				})
 			})
 		}

@@ -13,22 +13,22 @@ import (
 )
 
 type TPMPolicy struct {
-	commandCode   int
-	commandPolicy []byte
+	CommandCode   int
+	CommandPolicy []byte
 }
 
 type TPMAuthPolicy struct {
-	name   string
-	policy []*TPMPolicy
+	Name   string
+	Policy []*TPMPolicy
 }
 
 type TPMKey struct {
-	keytype     encasn1.ObjectIdentifier
-	emptyAuth   bool
-	policy      []*TPMPolicy
-	secret      []byte
-	authPolicy  []*TPMAuthPolicy
-	description string
+	Keytype     encasn1.ObjectIdentifier
+	EmptyAuth   bool
+	Policy      []*TPMPolicy
+	Secret      []byte
+	AuthPolicy  []*TPMAuthPolicy
+	Description string
 	Parent      tpm2.TPMHandle
 	Pubkey      tpm2.TPM2BPublic
 	Privkey     tpm2.TPM2BPrivate
@@ -43,7 +43,7 @@ func (t *TPMKey) HasSinger() bool {
 }
 
 func (t *TPMKey) HasAuth() bool {
-	return !t.emptyAuth
+	return !t.EmptyAuth
 }
 
 func (t *TPMKey) KeyAlgo() tpm2.TPMAlgID {
@@ -52,14 +52,6 @@ func (t *TPMKey) KeyAlgo() tpm2.TPMAlgID {
 		panic("can't serialize public key")
 	}
 	return pub.Type
-}
-
-func (t *TPMKey) SetDescription(s string) {
-	t.description = s
-}
-
-func (t *TPMKey) Description() string {
-	return t.description
 }
 
 func (t *TPMKey) Bytes() []byte {
@@ -134,17 +126,4 @@ func (t *TPMKey) PublicKey() (any, error) {
 		return t.rsaPubKey()
 	}
 	return nil, fmt.Errorf("no public key")
-}
-
-func NewLoadableKey(public tpm2.TPM2BPublic, private tpm2.TPM2BPrivate, parent tpm2.TPMHandle, emptyAuth bool) (*TPMKey, error) {
-	var key TPMKey
-	key.keytype = OIDLoadableKey
-	key.emptyAuth = emptyAuth
-
-	key.Pubkey = public
-	key.Privkey = private
-
-	key.Parent = parent
-
-	return &key, nil
 }
