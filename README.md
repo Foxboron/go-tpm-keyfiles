@@ -93,7 +93,6 @@ func main(){
 	}.Execute(tpm)
 
 	k := keyfile.NewTPMKey(
-		keyfile.WithParent(tpm2.TPMRHOwner),
 		keyfile.WithPubkey(eccKeyResponse.OutPublic),
 		keyfile.WithPrivkey(eccKeyResponse.OutPrivate),
 	)
