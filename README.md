@@ -23,7 +23,7 @@ package main
 import (
 	"os"
 
-	keyfile "github.com/foxboron/go-tpm-keyfile"
+	keyfile "github.com/foxboron/go-tpm-keyfiles"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
@@ -47,7 +47,7 @@ package main
 import (
 	"os"
 
-	keyfile "github.com/foxboron/go-tpm-keyfile"
+	keyfile "github.com/foxboron/go-tpm-keyfiles"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
@@ -119,7 +119,7 @@ import (
 	"crypto"
 	"os"
 
-	keyfile "github.com/foxboron/go-tpm-keyfile"
+	keyfile "github.com/foxboron/go-tpm-keyfiles"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
