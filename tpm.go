@@ -339,7 +339,7 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 
 	rspSign, err := sign.Execute(sess.GetTPM(), sess.GetHMACIn())
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign: %v", err)
+		return nil, fmt.Errorf("failed to sign: %w", err)
 	}
 
 	return &rspSign.Signature, nil
