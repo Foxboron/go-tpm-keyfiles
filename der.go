@@ -175,8 +175,20 @@ func Parse(b []byte) (*TPMKey, error) {
 	//   emptyAuth   [0] EXPLICIT BOOLEAN OPTIONAL,
 	if emptyAuthbytes, ok := readOptional(&s, 0); ok {
 		var auth bool
-		if !emptyAuthbytes.ReadASN1Boolean(&auth) {
+		var bytes cryptobyte.String
+		if !emptyAuthbytes.ReadASN1(&bytes, asn1.BOOLEAN) || len(bytes) != 1 {
 			return nil, errors.New("no emptyAuth bool")
+		}
+
+		switch bytes[0] {
+		case 0:
+			auth = false
+		case 1:
+			auth = true
+		case 0xff:
+			auth = true
+		default:
+			auth = false
 		}
 		tkey.EmptyAuth = auth
 	}
