@@ -13,7 +13,7 @@ import (
 // NewLoadableKey creates a new LoadableKey
 func NewLoadableKey(tpm transport.TPMCloser, alg tpm2.TPMAlgID, bits int, ownerauth []byte, fn ...TPMKeyOption) (*TPMKey, error) {
 	sess := NewTPMSession(tpm)
-	key := NewTPMKey(fn...)
+	key := NewTPMKey(OIDLoadableKey, tpm2.TPM2BPublic{}, tpm2.TPM2BPrivate{}, fn...)
 
 	parenthandle, err := GetParentHandle(sess, key.Parent, ownerauth)
 	if err != nil {
@@ -29,7 +29,6 @@ func NewLoadableKey(tpm transport.TPMCloser, alg tpm2.TPMAlgID, bits int, ownera
 
 	// Add the remaining options to complete the key
 	key.AddOptions(
-		WithKeytype(OIDLoadableKey),
 		WithPubkey(pub),
 		WithPrivkey(priv),
 	)

@@ -37,15 +37,18 @@ type TPMKey struct {
 	userAuth    []byte // Internal detail
 }
 
-func NewTPMKey(fn ...TPMKeyOption) *TPMKey {
+func NewTPMKey(oid encasn1.ObjectIdentifier, pubkey tpm2.TPM2BPublic, privkey tpm2.TPM2BPrivate, fn ...TPMKeyOption) *TPMKey {
 	var key TPMKey
 
 	// Set defaults
 	key.AddOptions(
+		WithKeytype(oid),
 		// We always start of with assuming this key shouldn't have an auth
 		WithUserAuth([]byte(nil)),
 		// Start out with setting the Owner as parent
 		WithParent(tpm2.TPMRHOwner),
+		WithPubkey(pubkey),
+		WithPrivkey(privkey),
 	)
 
 	key.AddOptions(fn...)

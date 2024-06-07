@@ -93,8 +93,10 @@ func main(){
 	}.Execute(tpm)
 
 	k := keyfile.NewTPMKey(
-		keyfile.WithPubkey(eccKeyResponse.OutPublic),
-		keyfile.WithPrivkey(eccKeyResponse.OutPrivate),
+		keyfile.OIDOldLoadableKey
+		eccKeyResponse.OutPublic,
+		eccKeyResponse.OutPrivate,
+		keyfile.WithDescription("This is a TPM Key"),
 	)
 
 	os.Writefile("key.pem", k.Bytes(), 0640)
