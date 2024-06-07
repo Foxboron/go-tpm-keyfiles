@@ -122,7 +122,7 @@ func TestSigning(t *testing.T) {
 			b := h.Sum(nil)
 
 			k, err := NewLoadableKey(tpm, c.keytype, c.bits, []byte(""),
-				WithSecret(c.pin),
+				WithUserAuth(c.pin),
 			)
 
 			if err != nil {
@@ -230,7 +230,7 @@ func TestSigningWithOwnerPassword(t *testing.T) {
 			b := h.Sum(nil)
 
 			k, err := NewLoadableKey(tpm, c.keytype, c.bits, c.ownerpassword,
-				WithSecret(c.pin),
+				WithUserAuth(c.pin),
 			)
 			if err != nil {
 				if c.shouldfail {

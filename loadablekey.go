@@ -22,7 +22,7 @@ func NewLoadableKey(tpm transport.TPMCloser, alg tpm2.TPMAlgID, bits int, ownera
 
 	defer sess.FlushHandle()
 
-	pub, priv, err := createKeyWithHandle(sess, *parenthandle, alg, bits, ownerauth, key.Secret)
+	pub, priv, err := createKeyWithHandle(sess, *parenthandle, alg, bits, ownerauth, key.userAuth)
 	if err != nil {
 		return nil, err
 	}

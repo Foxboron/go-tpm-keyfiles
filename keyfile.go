@@ -34,6 +34,7 @@ type TPMKey struct {
 	Parent      tpm2.TPMHandle
 	Pubkey      tpm2.TPM2BPublic
 	Privkey     tpm2.TPM2BPrivate
+	userAuth    []byte // Internal detail
 }
 
 func NewTPMKey(fn ...TPMKeyOption) *TPMKey {
@@ -42,7 +43,7 @@ func NewTPMKey(fn ...TPMKeyOption) *TPMKey {
 	// Set defaults
 	key.AddOptions(
 		// We always start of with assuming this key shouldn't have an auth
-		WithSecret([]byte(nil)),
+		WithUserAuth([]byte(nil)),
 		// Start out with setting the Owner as parent
 		WithParent(tpm2.TPMRHOwner),
 	)

@@ -22,12 +22,17 @@ func WithPolicy(policy []*TPMPolicy) TPMKeyOption {
 
 func WithSecret(secret []byte) TPMKeyOption {
 	return func(key *TPMKey) {
-		if len(secret) == 0 {
-			key.EmptyAuth = true
-			return
-		}
 		key.Secret = secret
-		key.EmptyAuth = false
+	}
+}
+
+func WithUserAuth(userauth []byte) TPMKeyOption {
+	return func(key *TPMKey) {
+		key.EmptyAuth = true
+		if len(userauth) != 0 {
+			key.userAuth = userauth
+			key.EmptyAuth = false
+		}
 	}
 }
 
