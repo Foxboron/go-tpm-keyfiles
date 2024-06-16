@@ -73,6 +73,16 @@ func MkImportableKey(t *testing.T, tpm transport.TPMCloser, keytype tpm2.TPMAlgI
 		keyfile.WithDescription(comment))
 }
 
+// Ensure we can try the entire conversion flows from imported key -> loadable key
+func MkImportableToLoadableKey(t *testing.T, tpm transport.TPMCloser, keytype tpm2.TPMAlgID, bits int, ownerauth []byte, userauth []byte, comment string) (*keyfile.TPMKey, error) {
+	t.Helper()
+	k, err := MkImportableKey(t, tpm, keytype, bits, ownerauth, userauth, comment)
+	if err != nil {
+		return nil, err
+	}
+	return keyfile.ImportTPMKey(tpm, k, ownerauth)
+}
+
 // Give us some random bytes
 func MustRand(size int) []byte {
 	b := make([]byte, size)
