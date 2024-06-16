@@ -135,10 +135,16 @@ func LoadKeyWithParent(session *TPMSession, parent tpm2.AuthHandle, key *TPMKey)
 
 func LoadKey(tpm transport.TPMCloser, key *TPMKey, ownerauth []byte) (*tpm2.AuthHandle, error) {
 	var sess TPMSession
+	var err error
 
 	sess.SetTPM(tpm)
 
-	if !key.Keytype.Equal(OIDLoadableKey) {
+	if key.Keytype.Equal(OIDImportableKey) {
+		key, err = ImportTPMKey(tpm, key, ownerauth)
+		if err != nil {
+			return nil, fmt.Errorf("failing loading imported key: %v", err)
+		}
+	} else if !key.Keytype.Equal(OIDLoadableKey) {
 		return nil, fmt.Errorf("not a loadable key")
 	}
 
@@ -287,6 +293,7 @@ func newRSASigScheme(digest tpm2.TPMAlgID) tpm2.TPMTSigScheme {
 
 func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digestalgo tpm2.TPMAlgID) (*tpm2.TPMTSignature, error) {
 	var digestlength int
+	var err error
 
 	switch digestalgo {
 	case tpm2.TPMAlgSHA256:
@@ -301,6 +308,19 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 
 	if len(digest) != digestlength {
 		return nil, fmt.Errorf("incorrect checksum length. expected %v got %v", digestlength, len(digest))
+	}
+
+	if key.Keytype.Equal(OIDImportableKey) {
+		key, err = ImportTPMKey(sess.tpm, key, ownerauth)
+		if err != nil {
+			return nil, fmt.Errorf("failing loading imported key for signing: %v", err)
+		}
+	} else if !key.Keytype.Equal(OIDLoadableKey) {
+		return nil, fmt.Errorf("not a loadable key")
+	}
+
+	if !key.HasSinger() {
+		return nil, fmt.Errorf("key does not have a signer")
 	}
 
 	srkHandle, srkPublic, err := CreateSRK(sess, tpm2.TPMRHOwner, ownerauth)
