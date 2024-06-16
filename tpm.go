@@ -556,3 +556,46 @@ func GetParentHandle(sess *TPMSession, parent tpm2.TPMHandle, ownerauth []byte) 
 	}
 	return &parenthandle, nil
 }
+
+// ChangeAuth changes the object authn header to something else
+// notice this changes the private blob inside the key in-place.
+func ChangeAuth(tpm transport.TPMCloser, ownerauth []byte, key *TPMKey, oldpin, newpin []byte) error {
+	// TODO: For imported keys I assume we need to do the entire encryption dance again?
+	if !key.Keytype.Equal(OIDLoadableKey) {
+		return fmt.Errorf("can only be used on loadable keys")
+	}
+
+	var err error
+
+	sess := NewTPMSession(tpm)
+	defer sess.FlushHandle()
+
+	handle, parenthandle, err := LoadKey(sess, key, ownerauth)
+	if err != nil {
+		return err
+	}
+	defer FlushHandle(tpm, handle)
+
+	if len(oldpin) != 0 {
+		handle.Auth = tpm2.PasswordAuth(oldpin)
+	}
+
+	oca := tpm2.ObjectChangeAuth{
+		ParentHandle: parenthandle,
+		ObjectHandle: *handle,
+		NewAuth: tpm2.TPM2BAuth{
+			Buffer: newpin,
+		},
+	}
+	rsp, err := oca.Execute(tpm, sess.GetHMAC())
+	if err != nil {
+		return fmt.Errorf("ObjectChangeAuth failed: %v", err)
+	}
+
+	key.AddOptions(
+		WithPrivkey(rsp.OutPrivate),
+		WithUserAuth(newpin),
+	)
+
+	return nil
+}

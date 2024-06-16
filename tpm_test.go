@@ -148,6 +148,83 @@ func TestCreateKeyWithOwnerPassword(t *testing.T) {
 		})
 	}
 }
+
+func TestChangeAuth(t *testing.T) {
+	cases := []struct {
+		text    string
+		alg     tpm2.TPMAlgID
+		bits    int
+		f       keytest.KeyFunc
+		oldPin  []byte
+		newPin  []byte
+		wanterr error
+	}{
+		{
+			text:   "change pin",
+			alg:    tpm2.TPMAlgECC,
+			bits:   256,
+			f:      keytest.MkKey,
+			oldPin: []byte("123"),
+			newPin: []byte("heyho"),
+		},
+		{
+			text:   "change pin - empty to something",
+			alg:    tpm2.TPMAlgECC,
+			bits:   256,
+			f:      keytest.MkImportableToLoadableKey,
+			oldPin: []byte(""),
+			newPin: []byte("heyho"),
+		},
+	}
+
+	tpm, err := simulator.OpenSimulator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tpm.Close()
+
+	for _, c := range cases {
+		t.Run(c.text, func(t *testing.T) {
+			k, err := c.f(t, tpm, c.alg, c.bits, []byte(""), c.oldPin, "")
+			if err != nil {
+				t.Fatalf("failed key import: %v", err)
+			}
+
+			h := crypto.SHA256.New()
+			h.Write([]byte(c.text))
+			b := h.Sum(nil)
+
+			signer, err := k.Signer(tpm, []byte(""), c.oldPin)
+			if err != nil {
+				t.Fatalf("failed creating signer")
+			}
+			_, err = signer.Sign((io.Reader)(nil), b, crypto.SHA256)
+			if err != nil {
+				t.Fatalf("signing with correct pin should not fail: %v", err)
+			}
+
+			if err := ChangeAuth(tpm, []byte(""), k, c.oldPin, c.newPin); err != nil {
+				t.Fatalf("ChangeAuth shouldn't fail: %v", err)
+			}
+
+			signer, err = k.Signer(tpm, []byte(""), c.oldPin)
+			if err != nil {
+				t.Fatalf("failed creating signer")
+			}
+
+			_, err = signer.Sign((io.Reader)(nil), b, crypto.SHA256)
+			if err == nil {
+				t.Fatalf("old pin works on updated key")
+			}
+
+			signer, err = k.Signer(tpm, []byte(""), c.newPin)
+			if err != nil {
+				t.Fatalf("failed creating signer")
+			}
+			_, err = signer.Sign((io.Reader)(nil), b, crypto.SHA256)
+			if err != nil {
+				t.Fatalf("new pin doesn't work: %v", err)
+			}
 		})
 	}
 }
