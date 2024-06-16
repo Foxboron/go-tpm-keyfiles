@@ -1,4 +1,4 @@
-package keyfile
+package keyfile_test
 
 import (
 	"bytes"
@@ -12,9 +12,12 @@ import (
 	"path"
 	"testing"
 
+	. "github.com/foxboron/go-tpm-keyfiles"
+	"github.com/foxboron/go-tpm-keyfiles/internal/keytest"
 	swtpm "github.com/foxboron/swtpm_test"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
+	"github.com/google/go-tpm/tpm2/transport/simulator"
 )
 
 func mustOpen(s string) []byte {
@@ -244,6 +247,214 @@ func TestOpenSSLKeys(t *testing.T) {
 				if !ok || err != nil {
 					t.Fatalf("failed signature verification: %v", err)
 				}
+			}
+		})
+	}
+}
+
+func TestTSSImportableKeys(t *testing.T) {
+	dir := t.TempDir()
+
+	swtpm := swtpm.NewSwtpm(dir)
+	socket, err := swtpm.Socket()
+	if err != nil {
+		t.Fatalf("failed socket: %v", err)
+	}
+	defer swtpm.Close()
+
+	tpm, err := transport.OpenTPM(socket)
+	if err != nil {
+		t.Fatalf("failed opentpm: %v", err)
+	}
+	defer tpm.Close()
+
+	for _, tt := range []struct {
+		name     string
+		k        *OpenSSLKey
+		userauth []byte
+		wantErr  error
+	}{
+		{
+			name: "rsa - test sign",
+			k: &OpenSSLKey{
+				algorithm: "RSA",
+			},
+			wantErr: nil,
+		},
+		{
+			name: "ecdsa p256 - test sign",
+			k: &OpenSSLKey{
+				algorithm: "EC",
+				pkeyopt:   []string{"group:P-256"},
+			},
+			wantErr: nil,
+		},
+		{
+			name: "ecdsa p256 - with user auth in creation",
+			k: &OpenSSLKey{
+				algorithm: "EC",
+				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
+			},
+			wantErr: tpm2.TPMRCAuthFail,
+		},
+		{
+			name: "ecdsa p256 - with user auth",
+			k: &OpenSSLKey{
+				algorithm: "EC",
+				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
+			},
+			userauth: []byte("abc"),
+			wantErr:  nil,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+
+			filename := mkProviderKey(t, socket, tt.k)
+
+			b, err := os.ReadFile(filename)
+			if err != nil {
+				t.Fatalf("failed reading file: %v", err)
+			}
+
+			key, err := Decode(b)
+			if err != nil {
+				t.Fatalf("failed key decode: %v", err)
+			}
+
+			signer, err := key.Signer(tpm, []byte(""), tt.userauth)
+			if err != nil {
+				t.Fatalf("failed making signer: %v", err)
+			}
+
+			h := crypto.SHA256.New()
+			h.Write([]byte("message"))
+			b = h.Sum(nil)
+
+			sig, err := signer.Sign((io.Reader)(nil), b[:], crypto.SHA256)
+			if !errors.Is(err, tt.wantErr) {
+				t.Fatalf("failed signing: %v", err)
+			}
+
+			if tt.wantErr == nil {
+				ok, err := key.Verify(crypto.SHA256, b[:], sig)
+				if !ok || err != nil {
+					t.Fatalf("failed signature verification: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestImportableLoadableKey(t *testing.T) {
+	tpm, err := simulator.OpenSimulator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tpm.Close()
+
+	for _, c := range []struct {
+		text          string
+		alg           tpm2.TPMAlgID
+		bits          int
+		comment       string
+		wantOwnerauth []byte
+		wantUserauth  []byte
+		ownerauth     []byte
+		userauth      []byte
+		f             keytest.KeyFunc
+		wantErr       error
+	}{
+		{
+			text: "create - p256",
+			alg:  tpm2.TPMAlgECC,
+			bits: 256,
+			f:    keytest.MkKey,
+		},
+		{
+			text: "imported - p256",
+			alg:  tpm2.TPMAlgECC,
+			bits: 256,
+			f:    keytest.MkImportableKey,
+		},
+		{
+			text: "create - rsa2048",
+			alg:  tpm2.TPMAlgRSA,
+			bits: 2048,
+			f:    keytest.MkKey,
+		},
+		{
+			text: "imported - rsa2048",
+			alg:  tpm2.TPMAlgRSA,
+			bits: 2048,
+			f:    keytest.MkImportableKey,
+		},
+		{
+			text:         "imported with userauth - p256",
+			alg:          tpm2.TPMAlgECC,
+			bits:         256,
+			f:            keytest.MkImportableKey,
+			wantUserauth: []byte("1234"),
+			userauth:     []byte("1234"),
+		},
+		{
+			text:         "imported with failing userauth - p256",
+			alg:          tpm2.TPMAlgECC,
+			bits:         256,
+			f:            keytest.MkImportableKey,
+			wantUserauth: []byte("1234"),
+			wantErr:      tpm2.TPMRCAuthFail,
+		},
+		{
+			text:         "imported with userauth - rsa2048",
+			alg:          tpm2.TPMAlgRSA,
+			bits:         2048,
+			f:            keytest.MkImportableKey,
+			wantUserauth: []byte("1234"),
+			userauth:     []byte("1234"),
+		},
+		{
+			text:         "imported with failing userauth - rsa2048",
+			alg:          tpm2.TPMAlgRSA,
+			bits:         2048,
+			f:            keytest.MkImportableKey,
+			wantUserauth: []byte("1234"),
+			wantErr:      tpm2.TPMRCAuthFail,
+		},
+	} {
+		t.Run(c.text, func(t *testing.T) {
+			k, err := c.f(t, tpm, c.alg, c.bits, c.wantOwnerauth, c.wantUserauth, c.comment)
+			if errors.Is(err, c.wantErr) {
+				return
+			} else if err != nil {
+				t.Fatalf("failed key import: %v", err)
+			}
+
+			signer, err := k.Signer(tpm, c.ownerauth, c.userauth)
+			if err != nil {
+				t.Fatalf("failed making signer: %v", err)
+			}
+
+			h := crypto.SHA256.New()
+			h.Write([]byte("message"))
+			b := h.Sum(nil)
+
+			sig, err := signer.Sign((io.Reader)(nil), b[:], crypto.SHA256)
+			if errors.Is(err, c.wantErr) {
+				return
+			} else if err != nil {
+				t.Fatalf("failed signing: %v", err)
+			}
+
+			ok, err := k.Verify(crypto.SHA256, b[:], sig)
+			if errors.Is(err, c.wantErr) {
+				return
+			}
+			if !ok || err != nil {
+				t.Fatalf("failed signature verification: %v", err)
+			}
+
+			if c.wantErr != nil {
+				t.Fatalf("test should have failed")
 			}
 		})
 	}
