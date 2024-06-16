@@ -133,28 +133,25 @@ func LoadKeyWithParent(session *TPMSession, parent tpm2.AuthHandle, key *TPMKey)
 	}, nil
 }
 
-func LoadKey(tpm transport.TPMCloser, key *TPMKey, ownerauth []byte) (*tpm2.AuthHandle, error) {
-	var sess TPMSession
+func LoadKey(sess *TPMSession, key *TPMKey, ownerauth []byte) (*tpm2.AuthHandle, *tpm2.AuthHandle, error) {
 	var err error
 
-	sess.SetTPM(tpm)
-
 	if key.Keytype.Equal(OIDImportableKey) {
-		key, err = ImportTPMKey(tpm, key, ownerauth)
+		key, err = ImportTPMKey(sess.tpm, key, ownerauth)
 		if err != nil {
-			return nil, fmt.Errorf("failing loading imported key: %v", err)
+			return nil, nil, fmt.Errorf("failing loading imported key: %v", err)
 		}
 	} else if !key.Keytype.Equal(OIDLoadableKey) {
-		return nil, fmt.Errorf("not a loadable key")
+		return nil, nil, fmt.Errorf("not a loadable key")
 	}
 
-	parenthandle, err := GetParentHandle(&sess, key.Parent, ownerauth)
+	parenthandle, err := GetParentHandle(sess, key.Parent, ownerauth)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	defer sess.FlushHandle()
+	keyhandle, err := LoadKeyWithParent(sess, *parenthandle, key)
 
-	return LoadKeyWithParent(&sess, *parenthandle, key)
+	return keyhandle, parenthandle, err
 }
 
 // Creates a Storage Key, or return the loaded storage key
@@ -491,7 +488,7 @@ func createKeyWithHandle(sess *TPMSession, parent tpm2.AuthHandle, keytype tpm2.
 }
 
 // TODO: Private until I'm confident of the API
-func createKey(sess *TPMSession, keytype tpm2.TPMAlgID, bits int, ownerAuth []byte, auth []byte) (tpm2.TPM2BPublic, tpm2.TPM2BPrivate, error) {
+func CreateKey(sess *TPMSession, keytype tpm2.TPMAlgID, bits int, ownerAuth []byte, auth []byte) (tpm2.TPM2BPublic, tpm2.TPM2BPrivate, error) {
 	srkHandle, pub, err := CreateSRK(sess, tpm2.TPMRHOwner, ownerAuth)
 	if err != nil {
 		return tpm2.TPM2BPublic{}, tpm2.TPM2BPrivate{}, err

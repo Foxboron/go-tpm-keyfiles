@@ -1,8 +1,12 @@
-package keyfile
+package keyfile_test
 
 import (
+	"crypto"
+	"io"
 	"testing"
 
+	. "github.com/foxboron/go-tpm-keyfiles"
+	"github.com/foxboron/go-tpm-keyfiles/internal/keytest"
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 )
@@ -45,7 +49,7 @@ func TestCreateKey(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.text, func(t *testing.T) {
-			pub, priv, err := createKey(sess, c.alg, c.bits, []byte(""), []byte(""))
+			pub, priv, err := CreateKey(sess, c.alg, c.bits, []byte(""), []byte(""))
 			if err != nil {
 				t.Errorf("failed key creation: %v", err)
 			}
@@ -60,11 +64,12 @@ func TestCreateKey(t *testing.T) {
 
 			// Test if we can load the key
 			// signer/signer_test.go tests the signing of the key
-			handle, err := LoadKey(tpm, k, []byte(""))
+			handle, _, err := LoadKey(sess, k, []byte(""))
 			if err != nil {
 				t.Fatalf("failed loading key: %v", err)
 			}
 			FlushHandle(tpm, handle)
+			sess.FlushHandle()
 		})
 	}
 }
@@ -119,7 +124,7 @@ func TestCreateKeyWithOwnerPassword(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.text, func(t *testing.T) {
-			pub, priv, err := createKey(sess, c.alg, c.bits, ownerPassword, []byte(""))
+			pub, priv, err := CreateKey(sess, c.alg, c.bits, ownerPassword, []byte(""))
 			if err != nil {
 				t.Errorf("failed key import: %v", err)
 			}
@@ -134,11 +139,15 @@ func TestCreateKeyWithOwnerPassword(t *testing.T) {
 
 			// Test if we can load the key
 			// signer/signer_test.go tests the signing of the key
-			handle, err := LoadKey(tpm, k, ownerPassword)
+			handle, _, err := LoadKey(sess, k, ownerPassword)
 			if err != nil {
 				t.Errorf("failed loading key: %v", err)
 			}
 			FlushHandle(tpm, handle)
+			sess.FlushHandle()
+		})
+	}
+}
 		})
 	}
 }
