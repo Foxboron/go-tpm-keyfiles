@@ -323,14 +323,13 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 		return nil, fmt.Errorf("key does not have a signer")
 	}
 
-	srkHandle, srkPublic, err := CreateSRK(sess, tpm2.TPMRHOwner, ownerauth)
+	parenthandle, err := GetParentHandle(sess, key.Parent, ownerauth)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating SRK: %v", err)
+		return nil, err
 	}
-	sess.SetSalted(srkHandle.Handle, *srkPublic)
-	defer FlushHandle(sess.GetTPM(), srkHandle)
+	defer sess.FlushHandle()
 
-	handle, err := LoadKeyWithParent(sess, *srkHandle, key)
+	handle, err := LoadKeyWithParent(sess, *parenthandle, key)
 	if err != nil {
 		return nil, err
 	}
