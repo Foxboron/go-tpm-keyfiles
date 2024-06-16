@@ -42,7 +42,7 @@ func EcdsaToTPMTPublic(pubkey *ecdsa.PublicKey, sha tpm2.TPMAlgID) *tpm2.TPMTPub
 					Buffer: pubkey.X.FillBytes(make([]byte, len(pubkey.X.Bytes()))),
 				},
 				Y: tpm2.TPM2BECCParameter{
-					Buffer: pubkey.Y.FillBytes(make([]byte, len(pubkey.X.Bytes()))),
+					Buffer: pubkey.Y.FillBytes(make([]byte, len(pubkey.Y.Bytes()))),
 				},
 			},
 		),
