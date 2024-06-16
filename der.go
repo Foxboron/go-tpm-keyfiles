@@ -25,7 +25,7 @@ var (
 	OIDLoadableKey = encasn1.ObjectIdentifier{2, 23, 133, 10, 1, 3}
 
 	// id-importablekey OBJECT IDENTIFIER ::=  {id-tpmkey 4}
-	OIDImportbleKey = encasn1.ObjectIdentifier{2, 23, 133, 10, 1, 4}
+	OIDImportableKey = encasn1.ObjectIdentifier{2, 23, 133, 10, 1, 4}
 
 	// id-sealedkey OBJECT IDENTIFIER ::= {id-tpmkey 5}
 	OIDSealedKey = encasn1.ObjectIdentifier{2, 23, 133, 10, 1, 5}
@@ -162,7 +162,7 @@ func Parse(b []byte) (*TPMKey, error) {
 	switch {
 	case oid.Equal(OIDLoadableKey):
 		fallthrough
-	case oid.Equal(OIDImportbleKey):
+	case oid.Equal(OIDImportableKey):
 		fallthrough
 	case oid.Equal(OIDSealedKey):
 		fallthrough
