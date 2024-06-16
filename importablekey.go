@@ -79,8 +79,8 @@ func createECCSeed(pub *tpm2.TPMTPublic) (seed, encryptedSeed []byte, err error)
 		crypto.SHA256.Size()*8)
 
 	encryptedSeed = tpm2.Marshal(tpm2.TPMSECCPoint{
-		X: tpm2.TPM2BECCParameter{Buffer: x.FillBytes(make([]byte, 32))},
-		Y: tpm2.TPM2BECCParameter{Buffer: y.FillBytes(make([]byte, 32))},
+		X: tpm2.TPM2BECCParameter{Buffer: x.FillBytes(make([]byte, len(x.Bytes())))},
+		Y: tpm2.TPM2BECCParameter{Buffer: y.FillBytes(make([]byte, len(y.Bytes())))},
 	})
 
 	return seed, encryptedSeed, err
@@ -111,7 +111,7 @@ func createWrap(pub *tpm2.TPMTPublic, pk any, userauth []byte) (tpm2.TPM2BPublic
 			SensitiveType: tpm2.TPMAlgECC,
 			Sensitive: tpm2.NewTPMUSensitiveComposite(
 				tpm2.TPMAlgECC,
-				&tpm2.TPM2BECCParameter{Buffer: pk.D.FillBytes(make([]byte, 32))},
+				&tpm2.TPM2BECCParameter{Buffer: pk.D.FillBytes(make([]byte, len(pk.D.Bytes())))},
 			),
 		}
 	case rsa.PrivateKey:
