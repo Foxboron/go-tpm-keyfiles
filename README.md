@@ -9,7 +9,7 @@ https://www.hansenpartnership.com/draft-bottomley-tpm2-keys.html
 ### Implementation Status
 
 - [x] Loadable Keys
-- [ ] Importable Keys
+- [x] Importable Keys
 - [ ] Sealed data
 
 
