@@ -201,11 +201,15 @@ func Parse(b []byte) (*TPMKey, error) {
 
 	//   secret      [2] EXPLICIT OCTET STRING OPTIONAL,
 	if secretbytes, ok := readOptional(&s, 2); ok {
-		var secret cryptobyte.String
-		if !secretbytes.ReadASN1(&secret, asn1.OCTET_STRING) {
+		var secretb cryptobyte.String
+		if !secretbytes.ReadASN1(&secretb, asn1.OCTET_STRING) {
 			return nil, errors.New("could not parse secret")
 		}
-		tkey.Secret = secret
+		secret, err := tpm2.Unmarshal[tpm2.TPM2BEncryptedSecret](secretb)
+		if err != nil {
+			return nil, errors.New("could not parse public section of key 1")
+		}
+		tkey.Secret = *secret
 	}
 
 	//   authPolicy  [3] EXPLICIT SEQUENCE OF TPMAuthPolicy OPTIONAL,
@@ -290,9 +294,9 @@ func Marshal(key *TPMKey) []byte {
 			})
 		}
 
-		if len(key.Secret) != 0 {
+		if len(key.Secret.Buffer) != 0 {
 			b.AddASN1(asn1.Tag(2).ContextSpecific().Constructed(), func(b *cryptobyte.Builder) {
-				b.AddASN1OctetString(key.Secret)
+				b.AddASN1OctetString(tpm2.Marshal(key.Secret))
 			})
 		}
 

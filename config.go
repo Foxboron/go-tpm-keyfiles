@@ -20,7 +20,7 @@ func WithPolicy(policy []*TPMPolicy) TPMKeyOption {
 	}
 }
 
-func WithSecret(secret []byte) TPMKeyOption {
+func WithSecret(secret tpm2.TPM2BEncryptedSecret) TPMKeyOption {
 	return func(key *TPMKey) {
 		key.Secret = secret
 	}

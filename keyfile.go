@@ -28,7 +28,7 @@ type TPMKey struct {
 	Keytype     encasn1.ObjectIdentifier
 	EmptyAuth   bool
 	Policy      []*TPMPolicy
-	Secret      []byte
+	Secret      tpm2.TPM2BEncryptedSecret
 	AuthPolicy  []*TPMAuthPolicy
 	Description string
 	Parent      tpm2.TPMHandle
