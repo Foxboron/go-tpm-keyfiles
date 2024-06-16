@@ -25,7 +25,7 @@ func (t *TPMKeySigner) Public() crypto.PublicKey {
 	pk, err := t.key.PublicKey()
 	// This shouldn't happen!
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("failed producing public: %v", err))
 	}
 	return pk
 }
