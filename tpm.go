@@ -316,7 +316,7 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 		return nil, fmt.Errorf("not a loadable key")
 	}
 
-	if !key.HasSinger() {
+	if !key.HasSigner() {
 		return nil, fmt.Errorf("key does not have a signer")
 	}
 

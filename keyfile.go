@@ -62,7 +62,7 @@ func (t *TPMKey) AddOptions(fn ...TPMKeyOption) {
 	}
 }
 
-func (t *TPMKey) HasSinger() bool {
+func (t *TPMKey) HasSigner() bool {
 	pub, err := t.Pubkey.Contents()
 	if err != nil {
 		panic("can't serialize public key")
@@ -159,7 +159,7 @@ func (t *TPMKey) PublicKey() (any, error) {
 // Wraps TPMSigner with some sane defaults
 // Use NewTPMSigner if you need more control of the parameters
 func (t *TPMKey) Signer(tpm transport.TPMCloser, ownerAuth, auth []byte) (crypto.Signer, error) {
-	if !t.HasSinger() {
+	if !t.HasSigner() {
 		// TODO: Implement support for signing with Decrypt operations
 		return nil, fmt.Errorf("does not have sign/encrypt attribute set")
 	}
