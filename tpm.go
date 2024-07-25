@@ -196,11 +196,12 @@ func createECCKey(ecc tpm2.TPMECCCurve, sha tpm2.TPMAlgID) tpm2.TPM2B[tpm2.TPMTP
 		Type:    tpm2.TPMAlgECC,
 		NameAlg: sha,
 		ObjectAttributes: tpm2.TPMAObject{
-			SignEncrypt:         true,
 			FixedTPM:            true,
 			FixedParent:         true,
 			SensitiveDataOrigin: true,
 			UserWithAuth:        true,
+			SignEncrypt:         true,
+			Decrypt:             true,
 		},
 		Parameters: tpm2.NewTPMUPublicParms(
 			tpm2.TPMAlgECC,
@@ -219,11 +220,12 @@ func createRSAKey(bits tpm2.TPMKeyBits, sha tpm2.TPMAlgID) tpm2.TPM2B[tpm2.TPMTP
 		Type:    tpm2.TPMAlgRSA,
 		NameAlg: sha,
 		ObjectAttributes: tpm2.TPMAObject{
-			SignEncrypt:         true,
 			FixedTPM:            true,
 			FixedParent:         true,
 			SensitiveDataOrigin: true,
 			UserWithAuth:        true,
+			SignEncrypt:         true,
+			Decrypt:             true,
 		},
 		Parameters: tpm2.NewTPMUPublicParms(
 			tpm2.TPMAlgRSA,
