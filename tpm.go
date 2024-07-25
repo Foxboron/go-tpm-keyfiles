@@ -2,14 +2,22 @@ package keyfile
 
 import (
 	"bytes"
+	"crypto/ecdh"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
+	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"slices"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
+	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/cryptobyte"
 	"golang.org/x/crypto/cryptobyte/asn1"
+	"golang.org/x/crypto/hkdf"
 )
 
 var (
@@ -600,4 +608,85 @@ func ChangeAuth(tpm transport.TPMCloser, ownerauth []byte, key *TPMKey, oldpin, 
 	)
 
 	return nil
+}
+
+const p256Label = "github.com/foxboron/go-tpm-keyfile/v1/p256"
+
+func kdf(sharedKey, publicKey *ecdh.PublicKey, shared []byte) ([]byte, error) {
+	// NOTE:
+	// This should probably be compatible with whatever openssl is doing,
+	// but I have no clue. So this is just what age is doing for figuring out
+	// shared tokens
+	sharedKeyB := sharedKey.Bytes()
+	publicKeyB := publicKey.Bytes()
+
+	// We use the concatinated bytes of the shared key and the public key for the
+	// key derivative functions.
+	salt := make([]byte, 0, len(sharedKeyB)+len(publicKeyB))
+	salt = append(salt, sharedKeyB...)
+	salt = append(salt, publicKeyB...)
+
+	h := hkdf.New(sha256.New, shared, salt, []byte(p256Label))
+	wrappingKey := make([]byte, chacha20poly1305.KeySize)
+	if _, err := io.ReadFull(h, wrappingKey); err != nil {
+		return nil, err
+	}
+	return wrappingKey, nil
+}
+
+func DeriveECDH(sess *TPMSession, key *TPMKey, sessionkey *ecdh.PublicKey, ownerauth, auth []byte) ([]byte, error) {
+	var publickey *ecdh.PublicKey
+	pubkey, err := key.PublicKey()
+	if err != nil {
+		return nil, fmt.Errorf("failed getting pubkey: %v", err)
+	}
+	switch pk := pubkey.(type) {
+	case *ecdsa.PublicKey:
+		publickey, err = pk.ECDH()
+		if err != nil {
+			return nil, fmt.Errorf("can't get ecdh key")
+		}
+	case *rsa.PublicKey:
+		return nil, fmt.Errorf("only ecdh key scan use DeriveECDH")
+	}
+
+	parenthandle, err := GetParentHandle(sess, key.Parent, ownerauth)
+	if err != nil {
+		return nil, err
+	}
+	defer sess.FlushHandle()
+
+	handle, err := LoadKeyWithParent(sess, *parenthandle, key)
+	if err != nil {
+		return nil, err
+	}
+	defer FlushHandle(sess.GetTPM(), handle)
+
+	if len(auth) != 0 {
+		handle.Auth = tpm2.PasswordAuth(auth)
+	}
+
+	x, y := elliptic.Unmarshal(elliptic.P256(), sessionkey.Bytes())
+
+	// ECDHZGen command for the TPM, turns the sesion key into something we understand.
+	ecdhRsp, err := tpm2.ECDHZGen{
+		KeyHandle: *handle,
+		InPoint: tpm2.New2B(
+			tpm2.TPMSECCPoint{
+				X: tpm2.TPM2BECCParameter{Buffer: x.FillBytes(make([]byte, 32))},
+				Y: tpm2.TPM2BECCParameter{Buffer: y.FillBytes(make([]byte, 32))},
+			},
+		),
+	}.Execute(sess.GetTPM(), sess.GetHMAC())
+	if err != nil {
+		fmt.Println("here")
+		return nil, err
+	}
+
+	shared, err := ecdhRsp.OutPoint.Contents()
+	if err != nil {
+		return nil, fmt.Errorf("failed getting ecdh point: %v", err)
+	}
+
+	return kdf(sessionkey, publickey, shared.X.Buffer)
 }
