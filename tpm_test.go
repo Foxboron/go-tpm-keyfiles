@@ -2,6 +2,8 @@ package keyfile_test
 
 import (
 	"crypto"
+	"crypto/ecdh"
+	"crypto/rand"
 	"io"
 	"testing"
 
@@ -226,5 +228,33 @@ func TestChangeAuth(t *testing.T) {
 				t.Fatalf("new pin doesn't work: %v", err)
 			}
 		})
+	}
+}
+
+func TestDerive(t *testing.T) {
+	tpm, err := simulator.OpenSimulator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tpm.Close()
+
+	sess := NewTPMSession(tpm)
+
+	k, err := keytest.MkKey(t, tpm, tpm2.TPMAlgECC, 256, []byte(nil), []byte(nil), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	sessionkey, err := ecdh.P256().GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	b, err := DeriveECDH(sess, k, sessionkey.PublicKey(), []byte(nil), []byte(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(b) == 0 {
+		t.Fatal("wrong size")
 	}
 }

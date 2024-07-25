@@ -3,6 +3,7 @@ package keyfile
 import (
 	"bytes"
 	"crypto"
+	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/rsa"
 	encasn1 "encoding/asn1"
@@ -129,4 +130,11 @@ func (t *TPMKey) Verify(alg crypto.Hash, hashed []byte, sig []byte) (bool, error
 		}
 	}
 	return true, nil
+}
+
+func (t *TPMKey) Derive(tpm transport.TPMCloser, sessionkey *ecdh.PublicKey, ownerAuth, auth []byte) ([]byte, error) {
+	// TODO: This should only be available for ECC keys
+	sess := NewTPMSession(tpm)
+	defer sess.FlushHandle()
+	return DeriveECDH(sess, t, sessionkey, ownerAuth, auth)
 }
