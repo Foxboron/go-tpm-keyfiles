@@ -433,7 +433,7 @@ func SupportedECCAlgorithms(tpm transport.TPMCloser) []int {
 	return supportedBitsizes
 }
 
-func createKeyWithHandle(sess *TPMSession, parent tpm2.AuthHandle, keytype tpm2.TPMAlgID, bits int, ownerAuth []byte, auth []byte) (tpm2.TPM2BPublic, tpm2.TPM2BPrivate, error) {
+func createKeyWithHandle(sess *TPMSession, parent tpm2.AuthHandle, keytype tpm2.TPMAlgID, bits int, ownerAuth []byte, auth []byte) (*tpm2.CreateResponse, error) {
 	rsaBits := []int{2048}
 	ecdsaBits := []int{256, 384, 521}
 
@@ -445,20 +445,20 @@ func createKeyWithHandle(sess *TPMSession, parent tpm2.AuthHandle, keytype tpm2.
 			bits = ecdsaBits[0]
 		}
 		if !slices.Contains(ecdsaBits, bits) {
-			return tpm2.TPM2BPublic{}, tpm2.TPM2BPrivate{}, errors.New("invalid ecdsa key length: valid length are 256, 384 or 512 bits")
+			return nil, errors.New("invalid ecdsa key length: valid length are 256, 384 or 512 bits")
 		}
 		if !slices.Contains(supportedECCBitsizes, bits) {
-			return tpm2.TPM2BPublic{}, tpm2.TPM2BPrivate{}, fmt.Errorf("invalid ecdsa key length: TPM does not support %v bits", bits)
+			return nil, fmt.Errorf("invalid ecdsa key length: TPM does not support %v bits", bits)
 		}
 	case tpm2.TPMAlgRSA:
 		if bits == 0 {
 			bits = rsaBits[0]
 		}
 		if !slices.Contains(rsaBits, bits) {
-			return tpm2.TPM2BPublic{}, tpm2.TPM2BPrivate{}, errors.New("invalid rsa key length: only 2048 is supported")
+			return nil, errors.New("invalid rsa key length: only 2048 is supported")
 		}
 	default:
-		return tpm2.TPM2BPublic{}, tpm2.TPM2BPrivate{}, fmt.Errorf("unsupported key type")
+		return nil, fmt.Errorf("unsupported key type")
 	}
 
 	var keyPublic tpm2.TPM2BPublic
@@ -491,10 +491,10 @@ func createKeyWithHandle(sess *TPMSession, parent tpm2.AuthHandle, keytype tpm2.
 
 	createRsp, err := createKey.Execute(sess.GetTPM(), sess.GetHMAC())
 	if err != nil {
-		return tpm2.TPM2BPublic{}, tpm2.TPM2BPrivate{}, fmt.Errorf("failed creating TPM key: %v", err)
+		return nil, fmt.Errorf("failed creating TPM key: %v", err)
 	}
 
-	return createRsp.OutPublic, createRsp.OutPrivate, nil
+	return createRsp, nil
 }
 
 // TODO: Private until I'm confident of the API
@@ -505,7 +505,8 @@ func CreateKey(sess *TPMSession, keytype tpm2.TPMAlgID, bits int, ownerAuth []by
 	}
 	sess.SetSalted(srkHandle.Handle, *pub)
 	defer FlushHandle(sess.GetTPM(), srkHandle)
-	return createKeyWithHandle(sess, *srkHandle, keytype, bits, ownerAuth, auth)
+	rsp, err := createKeyWithHandle(sess, *srkHandle, keytype, bits, ownerAuth, auth)
+	return rsp.OutPublic, rsp.OutPrivate, err
 }
 
 func ReadPublic(tpm transport.TPMCloser, handle tpm2.TPMHandle) (*tpm2.AuthHandle, *tpm2.TPMTPublic, error) {
