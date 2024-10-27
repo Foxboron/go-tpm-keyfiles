@@ -122,6 +122,13 @@ func (t *TPMSession) GetHMACIn() tpm2.Session {
 		t.opt)
 }
 
+func (t *TPMSession) GetHMACOut() tpm2.Session {
+	// EncryptIn and EncryptInOut are internal to go-tpm so.. this is the solution
+	return tpm2.HMAC(tpm2.TPMAlgSHA256, 16,
+		tpm2.AESEncryption(128, tpm2.EncryptOut),
+		t.opt)
+}
+
 func LoadKeyWithParent(session *TPMSession, parent tpm2.AuthHandle, key *TPMKey) (*tpm2.AuthHandle, error) {
 	loadBlobCmd := tpm2.Load{
 		ParentHandle: parent,
