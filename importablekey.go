@@ -215,7 +215,7 @@ func ImportTPMKey(tpm transport.TPMCloser, key *TPMKey, ownerauth []byte) (*TPMK
 		ObjectPublic: key.Pubkey,
 		Duplicate:    key.Privkey,
 		InSymSeed:    key.Secret,
-	}.Execute(tpm)
+	}.Execute(tpm, sess.GetHMAC())
 	if err != nil {
 		return nil, err
 	}

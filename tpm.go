@@ -128,7 +128,7 @@ func LoadKeyWithParent(session *TPMSession, parent tpm2.AuthHandle, key *TPMKey)
 		InPrivate:    key.Privkey,
 		InPublic:     key.Pubkey,
 	}
-	loadBlobRsp, err := loadBlobCmd.Execute(session.GetTPM())
+	loadBlobRsp, err := loadBlobCmd.Execute(session.GetTPM(), session.GetHMAC())
 	if err != nil {
 		return nil, fmt.Errorf("failed getting handle: %v", err)
 	}
