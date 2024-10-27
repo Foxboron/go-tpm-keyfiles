@@ -154,7 +154,7 @@ func LoadKey(sess *TPMSession, key *TPMKey, ownerauth []byte) (keyhandle *tpm2.A
 		if err != nil {
 			return nil, nil, fmt.Errorf("failing loading imported key: %v", err)
 		}
-	} else if !key.Keytype.Equal(OIDLoadableKey) {
+	} else if !key.Keytype.Equal(OIDLoadableKey) && !key.Keytype.Equal(OIDSealedKey) {
 		return nil, nil, fmt.Errorf("not a loadable key")
 	}
 

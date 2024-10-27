@@ -199,7 +199,7 @@ func NewImportablekey(rempub *tpm2.TPMTPublic, pk any, fn ...TPMKeyOption) (*TPM
 // Returns a loadable key
 func ImportTPMKey(tpm transport.TPMCloser, key *TPMKey, ownerauth []byte) (*TPMKey, error) {
 	var sess TPMSession
-	if !key.Keytype.Equal(OIDImportableKey) {
+	if !key.Keytype.Equal(OIDImportableKey) && !key.Keytype.Equal(OIDSealedKey) {
 		return nil, fmt.Errorf("need importable key OID")
 	}
 
