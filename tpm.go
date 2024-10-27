@@ -141,9 +141,7 @@ func LoadKeyWithParent(session *TPMSession, parent tpm2.AuthHandle, key *TPMKey)
 	}, nil
 }
 
-func LoadKey(sess *TPMSession, key *TPMKey, ownerauth []byte) (*tpm2.AuthHandle, *tpm2.AuthHandle, error) {
-	var err error
-
+func LoadKey(sess *TPMSession, key *TPMKey, ownerauth []byte) (keyhandle *tpm2.AuthHandle, parenthandle *tpm2.AuthHandle, err error) {
 	if key.Keytype.Equal(OIDImportableKey) {
 		key, err = ImportTPMKey(sess.tpm, key, ownerauth)
 		if err != nil {
@@ -153,11 +151,11 @@ func LoadKey(sess *TPMSession, key *TPMKey, ownerauth []byte) (*tpm2.AuthHandle,
 		return nil, nil, fmt.Errorf("not a loadable key")
 	}
 
-	parenthandle, err := GetParentHandle(sess, key.Parent, ownerauth)
+	parenthandle, err = GetParentHandle(sess, key.Parent, ownerauth)
 	if err != nil {
 		return nil, nil, err
 	}
-	keyhandle, err := LoadKeyWithParent(sess, *parenthandle, key)
+	keyhandle, err = LoadKeyWithParent(sess, *parenthandle, key)
 
 	return keyhandle, parenthandle, err
 }
