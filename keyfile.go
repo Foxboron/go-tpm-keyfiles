@@ -62,12 +62,19 @@ func (t *TPMKey) AddOptions(fn ...TPMKeyOption) {
 	}
 }
 
-func (t *TPMKey) HasSigner() bool {
+// Internal function to deserialize the TPMTPublic
+func (t *TPMKey) contents() *tpm2.TPMTPublic {
 	pub, err := t.Pubkey.Contents()
 	if err != nil {
-		panic("can't serialize public key")
+		// This should just not happen. So panic if we get this
+		// Prevents a bunch of error in our code.
+		panic(fmt.Sprintf("can't serialize public key: %v", err))
 	}
-	return pub.ObjectAttributes.SignEncrypt
+	return pub
+}
+
+func (t *TPMKey) HasSigner() bool {
+	return t.contents().ObjectAttributes.SignEncrypt
 }
 
 func (t *TPMKey) HasAuth() bool {
@@ -75,11 +82,22 @@ func (t *TPMKey) HasAuth() bool {
 }
 
 func (t *TPMKey) KeyAlgo() tpm2.TPMAlgID {
-	pub, err := t.Pubkey.Contents()
+	return t.contents().Type
+}
+
+func (t *TPMKey) KeySize() int {
+	pubkey, err := t.PublicKey()
 	if err != nil {
-		panic("can't serialize public key")
+		return 0
 	}
-	return pub.Type
+	switch pk := pubkey.(type) {
+	case *ecdsa.PublicKey:
+		// TODO: IDK yo
+		return 0
+	case *rsa.PublicKey:
+		return pk.Size()
+	}
+	return 0
 }
 
 func (t *TPMKey) Bytes() []byte {
@@ -92,11 +110,7 @@ func (t *TPMKey) Bytes() []byte {
 
 // PublicKey returns the ecdsa.Publickey or rsa.Publickey of the TPMKey
 func (t *TPMKey) PublicKey() (crypto.PublicKey, error) {
-	pub, err := t.Pubkey.Contents()
-	if err != nil {
-		return nil, fmt.Errorf("can't serialize public key contents")
-	}
-	return template.FromTPMPublicToPubkey(pub)
+	return template.FromTPMPublicToPubkey(t.contents())
 }
 
 // Wraps TPMSigner with some sane defaults
