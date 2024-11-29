@@ -79,6 +79,21 @@ func TestSigning(t *testing.T) {
 			bits:    2048,
 		},
 		{
+			msg:     "rsa - test encryption/decrypt - no pin - sha512",
+			filekey: []byte("this is a test filekey"),
+			keytype: tpm2.TPMAlgRSA,
+			digest:  crypto.SHA512,
+			bits:    2048,
+		},
+		// TODO: We should probably support this
+		// {
+		// 	msg:     "ecdsa - test encryption/decrypt - no pin - sha512",
+		// 	filekey: []byte("this is a test filekey"),
+		// 	keytype: tpm2.TPMAlgECDSA,
+		// 	digest:  crypto.SHA512,
+		// 	bits:    256,
+		// },
+		{
 			msg:     "rsa - test encryption/decrypt - pin",
 			filekey: []byte("this is a test filekey"),
 			pin:     []byte("123"),

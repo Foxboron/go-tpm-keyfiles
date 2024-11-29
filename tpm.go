@@ -2,6 +2,7 @@ package keyfile
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/ecdh"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -359,21 +360,66 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 		sigscheme = newRSASigScheme(digestalgo)
 	}
 
-	sign := tpm2.Sign{
-		KeyHandle: *handle,
-		Digest:    tpm2.TPM2BDigest{Buffer: digest[:]},
-		InScheme:  sigscheme,
-		Validation: tpm2.TPMTTKHashCheck{
-			Tag: tpm2.TPMSTHashCheck,
-		},
-	}
+	// If we encounter RSA with SHA512 keys we use TPM_Decrypt to sign
+	// This implements
+	if digestalgo == tpm2.TPMAlgSHA512 && key.KeyAlgo() == tpm2.TPMAlgRSA {
+		// TODO: Refactor this part
+		// Taken from crypto/rsa
+		pkcsPadding := func(hashed []byte, privkeySize int, h crypto.Hash) []byte {
+			var hashPrefixes = map[crypto.Hash][]byte{
+				crypto.SHA256: {0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20},
+				crypto.SHA384: {0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30},
+				crypto.SHA512: {0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40},
+			}
+			hashLen := h.Size()
 
-	rspSign, err := sign.Execute(sess.GetTPM(), sess.GetHMACIn())
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign: %w", err)
-	}
+			prefix := hashPrefixes[h]
+			tLen := len(hashPrefixes[h]) + hashLen
+			em := make([]byte, privkeySize)
+			em[1] = 1
+			for i := 2; i < privkeySize-tLen-1; i++ {
+				em[i] = 0xff
+			}
+			copy(em[privkeySize-tLen:privkeySize-hashLen], prefix)
+			copy(em[privkeySize-hashLen:privkeySize], hashed)
+			return em
+		}
+		paddedDigest := pkcsPadding(digest, key.KeySize(), crypto.SHA512)
+		decryptRsp, err := tpm2.RSADecrypt{
+			KeyHandle:  *handle,
+			CipherText: tpm2.TPM2BPublicKeyRSA{Buffer: paddedDigest[:]},
+			InScheme: tpm2.TPMTRSADecrypt{
+				Scheme: tpm2.TPMAlgNull,
+			},
+		}.Execute(sess.GetTPM(), sess.GetHMACIn())
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt+sign: %w", err)
+		}
+		return &tpm2.TPMTSignature{
+			Signature: tpm2.NewTPMUSignature(
+				tpm2.TPMAlgRSASSA,
+				&tpm2.TPMSSignatureRSA{
+					Hash: tpm2.TPMAlgSHA512,
+					Sig:  tpm2.TPM2BPublicKeyRSA{Buffer: decryptRsp.Message.Buffer},
+				},
+			),
+		}, nil
+	} else {
+		sign := tpm2.Sign{
+			KeyHandle: *handle,
+			Digest:    tpm2.TPM2BDigest{Buffer: digest[:]},
+			InScheme:  sigscheme,
+			Validation: tpm2.TPMTTKHashCheck{
+				Tag: tpm2.TPMSTHashCheck,
+			},
+		}
+		rspSign, err := sign.Execute(sess.GetTPM(), sess.GetHMACIn())
+		if err != nil {
+			return nil, fmt.Errorf("failed to sign: %w", err)
+		}
 
-	return &rspSign.Signature, nil
+		return &rspSign.Signature, nil
+	}
 }
 
 func SignASN1(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digestalgo tpm2.TPMAlgID) ([]byte, error) {
