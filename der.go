@@ -231,6 +231,16 @@ func Parse(b []byte) (*TPMKey, error) {
 		tkey.Description = string(description)
 	}
 
+	// Consume optional directives we don't support
+	// TODO: Bump this number when we support more things
+	i := 5
+	for {
+		if _, ok := readOptional(&s, i); !ok {
+			break
+		}
+		i++
+	}
+
 	//   parent      INTEGER,
 	var parent int
 	if !s.ReadASN1Integer(&parent) {
