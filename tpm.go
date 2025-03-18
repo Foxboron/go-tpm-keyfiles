@@ -352,8 +352,14 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 		handle.Auth = tpm2.PasswordAuth(auth)
 	}
 
+	return TPMSign(sess.GetTPM(), *handle, digest, digestalgo, key.KeySize(), key.KeyAlgo(), sess.GetHMACIn())
+}
+
+func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo tpm2.TPMAlgID, keysize int, keyalgo tpm2.TPMAlgID, sess ...tpm2.Session) (*tpm2.TPMTSignature, error) {
+
+	// Seperate function to include our own sigscheme?
 	var sigscheme tpm2.TPMTSigScheme
-	switch key.KeyAlgo() {
+	switch keyalgo {
 	case tpm2.TPMAlgECC:
 		sigscheme = newECCSigScheme(digestalgo)
 	case tpm2.TPMAlgRSA:
@@ -362,7 +368,7 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 
 	// If we encounter RSA with SHA512 keys we use TPM_Decrypt to sign
 	// This implements
-	if digestalgo == tpm2.TPMAlgSHA512 && key.KeyAlgo() == tpm2.TPMAlgRSA {
+	if digestalgo == tpm2.TPMAlgSHA512 && keyalgo == tpm2.TPMAlgRSA {
 		// TODO: Refactor this part
 		// Taken from crypto/rsa
 		pkcsPadding := func(hashed []byte, privkeySize int, h crypto.Hash) []byte {
@@ -384,14 +390,14 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 			copy(em[privkeySize-hashLen:privkeySize], hashed)
 			return em
 		}
-		paddedDigest := pkcsPadding(digest, key.KeySize(), crypto.SHA512)
+		paddedDigest := pkcsPadding(digest, keysize, crypto.SHA512)
 		decryptRsp, err := tpm2.RSADecrypt{
-			KeyHandle:  *handle,
+			KeyHandle:  handle,
 			CipherText: tpm2.TPM2BPublicKeyRSA{Buffer: paddedDigest[:]},
 			InScheme: tpm2.TPMTRSADecrypt{
 				Scheme: tpm2.TPMAlgNull,
 			},
-		}.Execute(sess.GetTPM(), sess.GetHMACIn())
+		}.Execute(tpm, sess...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to decrypt+sign: %w", err)
 		}
@@ -406,18 +412,17 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 		}, nil
 	} else {
 		sign := tpm2.Sign{
-			KeyHandle: *handle,
+			KeyHandle: handle,
 			Digest:    tpm2.TPM2BDigest{Buffer: digest[:]},
 			InScheme:  sigscheme,
 			Validation: tpm2.TPMTTKHashCheck{
 				Tag: tpm2.TPMSTHashCheck,
 			},
 		}
-		rspSign, err := sign.Execute(sess.GetTPM(), sess.GetHMACIn())
+		rspSign, err := sign.Execute(tpm, sess...)
 		if err != nil {
 			return nil, fmt.Errorf("failed to sign: %w", err)
 		}
-
 		return &rspSign.Signature, nil
 	}
 }
