@@ -378,6 +378,8 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 		sigscheme = newRSASSASigScheme(digestalgo)
 	case tpm2.TPMAlgRSAPSS:
 		sigscheme = newRSAPSSSigScheme(digestalgo)
+	default:
+		return nil, fmt.Errorf("Unexpected key algorithm 0x%x", keyalgo)
 	}
 
 	// If we encounter RSA with SHA512 keys we use TPM_Decrypt to sign
