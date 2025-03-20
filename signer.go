@@ -2,6 +2,7 @@ package keyfile
 
 import (
 	"crypto"
+	"crypto/rsa"
 	"fmt"
 	"io"
 
@@ -32,7 +33,7 @@ func (t *TPMKeySigner) Public() crypto.PublicKey {
 
 // Sign implementation
 func (t *TPMKeySigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
-	var digestalg tpm2.TPMAlgID
+	var digestalg, signalg tpm2.TPMAlgID
 
 	auth := []byte("")
 	if t.key.HasAuth() {
@@ -54,6 +55,14 @@ func (t *TPMKeySigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) 
 		return nil, fmt.Errorf("%s is not a supported hashing algorithm", opts.HashFunc())
 	}
 
+	signalg = t.key.KeyAlgo()
+	if _, ok := opts.(*rsa.PSSOptions); ok {
+		if signalg != tpm2.TPMAlgRSA {
+			return nil, fmt.Errorf("Attempting to use PSSOptions with non-RSA (alg %x) key", signalg)
+		}
+		signalg = tpm2.TPMAlgRSAPSS
+	}
+
 	ownerauth, err := t.ownerAuth()
 	if err != nil {
 		return nil, err
@@ -62,7 +71,7 @@ func (t *TPMKeySigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) 
 	sess := NewTPMSession(t.tpm())
 	sess.SetTPM(t.tpm())
 
-	return SignASN1(sess, t.key, ownerauth, auth, digest, digestalg)
+	return SignASN1(sess, t.key, ownerauth, auth, digest, digestalg, signalg)
 }
 
 func NewTPMKeySigner(k *TPMKey, ownerAuth func() ([]byte, error), tpm func() transport.TPMCloser, auth func(*TPMKey) ([]byte, error)) *TPMKeySigner {
