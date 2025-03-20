@@ -242,7 +242,7 @@ func Parse(b []byte) (*TPMKey, error) {
 	}
 
 	//   parent      INTEGER,
-	var parent int
+	var parent uint32
 	if !s.ReadASN1Integer(&parent) {
 		return nil, errors.New("failed reading parent")
 	}
