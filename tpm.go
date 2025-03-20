@@ -446,6 +446,10 @@ func SignASN1(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, dig
 	if err != nil {
 		return nil, err
 	}
+	return EncodeSignatureASN1(rsp)
+}
+
+func EncodeSignatureASN1(rsp *tpm2.TPMTSignature) ([]byte, error) {
 	switch rsp.SigAlg {
 	case tpm2.TPMAlgECDSA:
 		eccsig, err := rsp.Signature.ECDSA()
