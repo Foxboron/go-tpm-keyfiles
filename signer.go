@@ -5,10 +5,14 @@ import (
 	"crypto/rsa"
 	"fmt"
 	"io"
+	"sync"
 
 	"github.com/google/go-tpm/tpm2"
 	"github.com/google/go-tpm/tpm2/transport"
 )
+
+// Ideally, this would be per-TPM, but e.g. go-tpm-tools just uses a global mutex.
+var signerMutex sync.Mutex
 
 // TPMKeySigner implements the crypto.Signer interface for TPMKey
 // It allows passing callbacks for TPM, ownerAuth and user auth.
@@ -34,6 +38,9 @@ func (t *TPMKeySigner) Public() crypto.PublicKey {
 // Sign implementation
 func (t *TPMKeySigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpts) ([]byte, error) {
 	var digestalg, signalg tpm2.TPMAlgID
+
+	signerMutex.Lock()
+	defer signerMutex.Unlock()
 
 	auth := []byte("")
 	if t.key.HasAuth() {
@@ -125,6 +132,9 @@ func (t *TPMHandleSigner) Sign(_ io.Reader, digest []byte, opts crypto.SignerOpt
 		}
 		signalg = tpm2.TPMAlgRSAPSS
 	}
+
+	signerMutex.Lock()
+	defer signerMutex.Unlock()
 
 	rsp, err := TPMSign(t.tpm, t.handle, digest, digestalg, t.keySize, signalg)
 	if err != nil {
