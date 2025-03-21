@@ -292,11 +292,23 @@ func newECCSigScheme(digest tpm2.TPMAlgID) tpm2.TPMTSigScheme {
 	}
 }
 
-func newRSASigScheme(digest tpm2.TPMAlgID) tpm2.TPMTSigScheme {
+func newRSASSASigScheme(digest tpm2.TPMAlgID) tpm2.TPMTSigScheme {
 	return tpm2.TPMTSigScheme{
 		Scheme: tpm2.TPMAlgRSASSA,
 		Details: tpm2.NewTPMUSigScheme(
 			tpm2.TPMAlgRSASSA,
+			&tpm2.TPMSSchemeHash{
+				HashAlg: digest,
+			},
+		),
+	}
+}
+
+func newRSAPSSSigScheme(digest tpm2.TPMAlgID) tpm2.TPMTSigScheme {
+	return tpm2.TPMTSigScheme{
+		Scheme: tpm2.TPMAlgRSAPSS,
+		Details: tpm2.NewTPMUSigScheme(
+			tpm2.TPMAlgRSAPSS,
 			&tpm2.TPMSSchemeHash{
 				HashAlg: digest,
 			},
@@ -362,13 +374,15 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 	switch keyalgo {
 	case tpm2.TPMAlgECC:
 		sigscheme = newECCSigScheme(digestalgo)
-	case tpm2.TPMAlgRSA:
-		sigscheme = newRSASigScheme(digestalgo)
+	case tpm2.TPMAlgRSA, tpm2.TPMAlgRSASSA:
+		sigscheme = newRSASSASigScheme(digestalgo)
+	case tpm2.TPMAlgRSAPSS:
+		sigscheme = newRSAPSSSigScheme(digestalgo)
 	}
 
 	// If we encounter RSA with SHA512 keys we use TPM_Decrypt to sign
 	// This implements
-	if digestalgo == tpm2.TPMAlgSHA512 && keyalgo == tpm2.TPMAlgRSA {
+	if digestalgo == tpm2.TPMAlgSHA512 && (keyalgo == tpm2.TPMAlgRSA || keyalgo == tpm2.TPMAlgRSASSA) {
 		// TODO: Refactor this part
 		// Taken from crypto/rsa
 		pkcsPadding := func(hashed []byte, privkeySize int, h crypto.Hash) []byte {
@@ -432,19 +446,25 @@ func SignASN1(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, dig
 	if err != nil {
 		return nil, err
 	}
-	switch key.KeyAlgo() {
-	case tpm2.TPMAlgECC:
+	switch rsp.SigAlg {
+	case tpm2.TPMAlgECDSA:
 		eccsig, err := rsp.Signature.ECDSA()
 		if err != nil {
 			return nil, fmt.Errorf("failed getting signature: %v", err)
 		}
 		return encodeSignature(eccsig.SignatureR.Buffer, eccsig.SignatureS.Buffer)
-	case tpm2.TPMAlgRSA:
+	case tpm2.TPMAlgRSASSA:
 		rsassa, err := rsp.Signature.RSASSA()
 		if err != nil {
 			return nil, fmt.Errorf("failed getting rsassa signature")
 		}
 		return rsassa.Sig.Buffer, nil
+	case tpm2.TPMAlgRSAPSS:
+		rsapss, err := rsp.Signature.RSAPSS()
+		if err != nil {
+			return nil, fmt.Errorf("failed getting rsapss signature")
+		}
+		return rsapss.Sig.Buffer, nil
 	}
 	return nil, fmt.Errorf("failed returning signature")
 }
