@@ -316,7 +316,7 @@ func newRSAPSSSigScheme(digest tpm2.TPMAlgID) tpm2.TPMTSigScheme {
 	}
 }
 
-func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digestalgo tpm2.TPMAlgID) (*tpm2.TPMTSignature, error) {
+func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digestalgo, signalgo tpm2.TPMAlgID) (*tpm2.TPMTSignature, error) {
 	var digestlength int
 	var err error
 
@@ -364,7 +364,7 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 		handle.Auth = tpm2.PasswordAuth(auth)
 	}
 
-	return TPMSign(sess.GetTPM(), *handle, digest, digestalgo, key.KeySize(), key.KeyAlgo(), sess.GetHMACIn())
+	return TPMSign(sess.GetTPM(), *handle, digest, digestalgo, key.KeySize(), signalgo, sess.GetHMACIn())
 }
 
 func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo tpm2.TPMAlgID, keysize int, keyalgo tpm2.TPMAlgID, sess ...tpm2.Session) (*tpm2.TPMTSignature, error) {
@@ -378,6 +378,8 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 		sigscheme = newRSASSASigScheme(digestalgo)
 	case tpm2.TPMAlgRSAPSS:
 		sigscheme = newRSAPSSSigScheme(digestalgo)
+	default:
+		return nil, fmt.Errorf("Unexpected key algorithm 0x%x", keyalgo)
 	}
 
 	// If we encounter RSA with SHA512 keys we use TPM_Decrypt to sign
@@ -441,11 +443,15 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 	}
 }
 
-func SignASN1(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digestalgo tpm2.TPMAlgID) ([]byte, error) {
-	rsp, err := Sign(sess, key, ownerauth, auth, digest, digestalgo)
+func SignASN1(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digestalgo, signalgo tpm2.TPMAlgID) ([]byte, error) {
+	rsp, err := Sign(sess, key, ownerauth, auth, digest, digestalgo, signalgo)
 	if err != nil {
 		return nil, err
 	}
+	return EncodeSignatureASN1(rsp)
+}
+
+func EncodeSignatureASN1(rsp *tpm2.TPMTSignature) ([]byte, error) {
 	switch rsp.SigAlg {
 	case tpm2.TPMAlgECDSA:
 		eccsig, err := rsp.Signature.ECDSA()
