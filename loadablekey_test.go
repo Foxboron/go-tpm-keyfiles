@@ -16,14 +16,12 @@ func TestNewLoadableKey(t *testing.T) {
 		t.Fatalf("message")
 	}
 	defer tpm.Close()
-	key, err := NewLoadableKey(tpm, tpm2.TPMAlgECC, 256, []byte{},
+	_, err = NewLoadableKey(tpm, tpm2.TPMAlgECC, 256, []byte{},
 		WithDescription("testkey"),
 	)
 	if err != nil {
 		t.Fatalf("message")
 	}
-	fmt.Println(key)
-
 }
 
 func TestSigning(t *testing.T) {
