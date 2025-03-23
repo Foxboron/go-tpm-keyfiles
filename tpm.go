@@ -418,6 +418,7 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 			return nil, fmt.Errorf("failed to decrypt+sign: %w", err)
 		}
 		return &tpm2.TPMTSignature{
+			SigAlg: tpm2.TPMAlgRSASSA,
 			Signature: tpm2.NewTPMUSignature(
 				tpm2.TPMAlgRSASSA,
 				&tpm2.TPMSSignatureRSA{
