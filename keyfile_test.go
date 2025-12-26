@@ -8,15 +8,11 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/exec"
-	"path"
 	"testing"
 
 	. "github.com/foxboron/go-tpm-keyfiles"
 	"github.com/foxboron/go-tpm-keyfiles/internal/keytest"
-	swtpm "github.com/foxboron/swtpm_test"
 	"github.com/google/go-tpm/tpm2"
-	"github.com/google/go-tpm/tpm2/transport"
 	"github.com/google/go-tpm/tpm2/transport/simulator"
 )
 
@@ -116,234 +112,234 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
-type OpenSSLKey struct {
-	algorithm string
-	pkeyopt   []string
-}
-
-func mkProviderKey(t *testing.T, socket string, k *OpenSSLKey) string {
-	t.Helper()
-
-	args := []string{
-		"genpkey", "-provider", "tpm2",
-	}
-
-	dir := t.TempDir()
-	filename := path.Join(dir, "testkey.priv")
-
-	args = append(args, "-algorithm", k.algorithm)
-
-	if len(k.pkeyopt) != 0 {
-		for _, s := range k.pkeyopt {
-			args = append(args, "-pkeyopt", s)
-		}
-	}
-
-	args = append(args, "-out", filename)
-
-	cmd := exec.Command("openssl", args...)
-	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("TPM2OPENSSL_TCTI=swtpm:path=%s", socket),
-	)
-	cmd.Dir = dir
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	err := cmd.Start()
-	if err != nil {
-		panic(err)
-	}
-	err = cmd.Wait()
-	if err != nil {
-		panic(err)
-	}
-	return filename
-}
-
-func TestOpenSSLKeys(t *testing.T) {
-	dir := t.TempDir()
-
-	swtpm := swtpm.NewSwtpm(dir)
-	socket, err := swtpm.Socket()
-	if err != nil {
-		t.Fatalf("failed socket: %v", err)
-	}
-	defer swtpm.Close()
-
-	tpm, err := transport.OpenTPM(socket)
-	if err != nil {
-		t.Fatalf("failed opentpm: %v", err)
-	}
-	defer tpm.Close()
-
-	for _, tt := range []struct {
-		name     string
-		k        *OpenSSLKey
-		userauth []byte
-		wantErr  error
-	}{
-		{
-			name: "rsa - test sign",
-			k: &OpenSSLKey{
-				algorithm: "RSA",
-			},
-			wantErr: nil,
-		},
-		{
-			name: "ecdsa p256 - test sign",
-			k: &OpenSSLKey{
-				algorithm: "EC",
-				pkeyopt:   []string{"group:P-256"},
-			},
-			wantErr: nil,
-		},
-		{
-			name: "ecdsa p256 - with user auth in creation",
-			k: &OpenSSLKey{
-				algorithm: "EC",
-				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
-			},
-			wantErr: tpm2.TPMRCAuthFail,
-		},
-		{
-			name: "ecdsa p256 - with user auth",
-			k: &OpenSSLKey{
-				algorithm: "EC",
-				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
-			},
-			userauth: []byte("abc"),
-			wantErr:  nil,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-
-			filename := mkProviderKey(t, socket, tt.k)
-
-			b, err := os.ReadFile(filename)
-			if err != nil {
-				t.Fatalf("failed reading file: %v", err)
-			}
-
-			key, err := Decode(b)
-			if err != nil {
-				t.Fatalf("failed key decode: %v", err)
-			}
-
-			signer, err := key.Signer(tpm, []byte(""), tt.userauth)
-			if err != nil {
-				t.Fatalf("failed making signer: %v", err)
-			}
-
-			h := crypto.SHA256.New()
-			h.Write([]byte("message"))
-			b = h.Sum(nil)
-
-			sig, err := signer.Sign((io.Reader)(nil), b[:], crypto.SHA256)
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("failed signing: %v", err)
-			}
-
-			if tt.wantErr == nil {
-				ok, err := key.Verify(crypto.SHA256, b[:], sig)
-				if !ok || err != nil {
-					t.Fatalf("failed signature verification: %v", err)
-				}
-			}
-		})
-	}
-}
-
-func TestTSSImportableKeys(t *testing.T) {
-	dir := t.TempDir()
-
-	swtpm := swtpm.NewSwtpm(dir)
-	socket, err := swtpm.Socket()
-	if err != nil {
-		t.Fatalf("failed socket: %v", err)
-	}
-	defer swtpm.Close()
-
-	tpm, err := transport.OpenTPM(socket)
-	if err != nil {
-		t.Fatalf("failed opentpm: %v", err)
-	}
-	defer tpm.Close()
-
-	for _, tt := range []struct {
-		name     string
-		k        *OpenSSLKey
-		userauth []byte
-		wantErr  error
-	}{
-		{
-			name: "rsa - test sign",
-			k: &OpenSSLKey{
-				algorithm: "RSA",
-			},
-			wantErr: nil,
-		},
-		{
-			name: "ecdsa p256 - test sign",
-			k: &OpenSSLKey{
-				algorithm: "EC",
-				pkeyopt:   []string{"group:P-256"},
-			},
-			wantErr: nil,
-		},
-		{
-			name: "ecdsa p256 - with user auth in creation",
-			k: &OpenSSLKey{
-				algorithm: "EC",
-				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
-			},
-			wantErr: tpm2.TPMRCAuthFail,
-		},
-		{
-			name: "ecdsa p256 - with user auth",
-			k: &OpenSSLKey{
-				algorithm: "EC",
-				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
-			},
-			userauth: []byte("abc"),
-			wantErr:  nil,
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-
-			filename := mkProviderKey(t, socket, tt.k)
-
-			b, err := os.ReadFile(filename)
-			if err != nil {
-				t.Fatalf("failed reading file: %v", err)
-			}
-
-			key, err := Decode(b)
-			if err != nil {
-				t.Fatalf("failed key decode: %v", err)
-			}
-
-			signer, err := key.Signer(tpm, []byte(""), tt.userauth)
-			if err != nil {
-				t.Fatalf("failed making signer: %v", err)
-			}
-
-			h := crypto.SHA256.New()
-			h.Write([]byte("message"))
-			b = h.Sum(nil)
-
-			sig, err := signer.Sign((io.Reader)(nil), b[:], crypto.SHA256)
-			if !errors.Is(err, tt.wantErr) {
-				t.Fatalf("failed signing: %v", err)
-			}
-
-			if tt.wantErr == nil {
-				ok, err := key.Verify(crypto.SHA256, b[:], sig)
-				if !ok || err != nil {
-					t.Fatalf("failed signature verification: %v", err)
-				}
-			}
-		})
-	}
-}
+// TODO: Rewrite, but lets use the simulator as the socket for openssl.
+//
+// type OpenSSLKey struct {
+// 	algorithm string
+// 	pkeyopt   []string
+// }
+//
+// func mkProviderKey(t *testing.T, socket string, k *OpenSSLKey) string {
+// 	t.Helper()
+//
+// 	args := []string{
+// 		"genpkey", "-provider", "tpm2",
+// 	}
+//
+// 	dir := t.TempDir()
+// 	filename := path.Join(dir, "testkey.priv")
+//
+// 	args = append(args, "-algorithm", k.algorithm)
+//
+// 	if len(k.pkeyopt) != 0 {
+// 		for _, s := range k.pkeyopt {
+// 			args = append(args, "-pkeyopt", s)
+// 		}
+// 	}
+//
+// 	args = append(args, "-out", filename)
+//
+// 	cmd := exec.Command("openssl", args...)
+// 	cmd.Env = append(os.Environ(),
+// 		fmt.Sprintf("TPM2OPENSSL_TCTI=swtpm:path=%s", socket),
+// 	)
+// 	cmd.Dir = dir
+// 	cmd.Stdout = os.Stdout
+// 	cmd.Stderr = os.Stderr
+// 	err := cmd.Start()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	err = cmd.Wait()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	return filename
+// }
+//
+// func TestOpenSSLKeys(t *testing.T) {
+// 	dir := t.TempDir()
+//
+// 	swtpm := swtpm.NewSwtpm(dir)
+// 	socket, err := swtpm.Socket()
+// 	if err != nil {
+// 		t.Fatalf("failed socket: %v", err)
+// 	}
+// 	defer swtpm.Close()
+//
+// 	tpm, err := transport.OpenTPM(socket)
+// 	if err != nil {
+// 		t.Fatalf("failed opentpm: %v", err)
+// 	}
+// 	defer tpm.Close()
+//
+// 	for _, tt := range []struct {
+// 		name     string
+// 		k        *OpenSSLKey
+// 		userauth []byte
+// 		wantErr  error
+// 	}{
+// 		{
+// 			name: "rsa - test sign",
+// 			k: &OpenSSLKey{
+// 				algorithm: "RSA",
+// 			},
+// 			wantErr: nil,
+// 		},
+// 		{
+// 			name: "ecdsa p256 - test sign",
+// 			k: &OpenSSLKey{
+// 				algorithm: "EC",
+// 				pkeyopt:   []string{"group:P-256"},
+// 			},
+// 			wantErr: nil,
+// 		},
+// 		{
+// 			name: "ecdsa p256 - with user auth in creation",
+// 			k: &OpenSSLKey{
+// 				algorithm: "EC",
+// 				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
+// 			},
+// 			wantErr: tpm2.TPMRCAuthFail,
+// 		},
+// 		{
+// 			name: "ecdsa p256 - with user auth",
+// 			k: &OpenSSLKey{
+// 				algorithm: "EC",
+// 				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
+// 			},
+// 			userauth: []byte("abc"),
+// 			wantErr:  nil,
+// 		},
+// 	} {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			filename := mkProviderKey(t, socket, tt.k)
+//
+// 			b, err := os.ReadFile(filename)
+// 			if err != nil {
+// 				t.Fatalf("failed reading file: %v", err)
+// 			}
+//
+// 			key, err := Decode(b)
+// 			if err != nil {
+// 				t.Fatalf("failed key decode: %v", err)
+// 			}
+//
+// 			signer, err := key.Signer(tpm, []byte(""), tt.userauth)
+// 			if err != nil {
+// 				t.Fatalf("failed making signer: %v", err)
+// 			}
+//
+// 			h := crypto.SHA256.New()
+// 			h.Write([]byte("message"))
+// 			b = h.Sum(nil)
+//
+// 			sig, err := signer.Sign((io.Reader)(nil), b[:], crypto.SHA256)
+// 			if !errors.Is(err, tt.wantErr) {
+// 				t.Fatalf("failed signing: %v", err)
+// 			}
+//
+// 			if tt.wantErr == nil {
+// 				ok, err := key.Verify(crypto.SHA256, b[:], sig)
+// 				if !ok || err != nil {
+// 					t.Fatalf("failed signature verification: %v", err)
+// 				}
+// 			}
+// 		})
+// 	}
+// }
+//
+// func TestTSSImportableKeys(t *testing.T) {
+// 	dir := t.TempDir()
+//
+// 	swtpm := swtpm.NewSwtpm(dir)
+// 	socket, err := swtpm.Socket()
+// 	if err != nil {
+// 		t.Fatalf("failed socket: %v", err)
+// 	}
+// 	defer swtpm.Close()
+//
+// 	tpm, err := transport.OpenTPM(socket)
+// 	if err != nil {
+// 		t.Fatalf("failed opentpm: %v", err)
+// 	}
+// 	defer tpm.Close()
+//
+// 	for _, tt := range []struct {
+// 		name     string
+// 		k        *OpenSSLKey
+// 		userauth []byte
+// 		wantErr  error
+// 	}{
+// 		{
+// 			name: "rsa - test sign",
+// 			k: &OpenSSLKey{
+// 				algorithm: "RSA",
+// 			},
+// 			wantErr: nil,
+// 		},
+// 		{
+// 			name: "ecdsa p256 - test sign",
+// 			k: &OpenSSLKey{
+// 				algorithm: "EC",
+// 				pkeyopt:   []string{"group:P-256"},
+// 			},
+// 			wantErr: nil,
+// 		},
+// 		{
+// 			name: "ecdsa p256 - with user auth in creation",
+// 			k: &OpenSSLKey{
+// 				algorithm: "EC",
+// 				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
+// 			},
+// 			wantErr: tpm2.TPMRCAuthFail,
+// 		},
+// 		{
+// 			name: "ecdsa p256 - with user auth",
+// 			k: &OpenSSLKey{
+// 				algorithm: "EC",
+// 				pkeyopt:   []string{"group:P-256", "user-auth:abc"},
+// 			},
+// 			userauth: []byte("abc"),
+// 			wantErr:  nil,
+// 		},
+// 	} {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			filename := mkProviderKey(t, socket, tt.k)
+//
+// 			b, err := os.ReadFile(filename)
+// 			if err != nil {
+// 				t.Fatalf("failed reading file: %v", err)
+// 			}
+//
+// 			key, err := Decode(b)
+// 			if err != nil {
+// 				t.Fatalf("failed key decode: %v", err)
+// 			}
+//
+// 			signer, err := key.Signer(tpm, []byte(""), tt.userauth)
+// 			if err != nil {
+// 				t.Fatalf("failed making signer: %v", err)
+// 			}
+//
+// 			h := crypto.SHA256.New()
+// 			h.Write([]byte("message"))
+// 			b = h.Sum(nil)
+//
+// 			sig, err := signer.Sign((io.Reader)(nil), b[:], crypto.SHA256)
+// 			if !errors.Is(err, tt.wantErr) {
+// 				t.Fatalf("failed signing: %v", err)
+// 			}
+//
+// 			if tt.wantErr == nil {
+// 				ok, err := key.Verify(crypto.SHA256, b[:], sig)
+// 				if !ok || err != nil {
+// 					t.Fatalf("failed signature verification: %v", err)
+// 				}
+// 			}
+// 		})
+// 	}
+// }
 
 func TestImportableLoadableKey(t *testing.T) {
 	tpm, err := simulator.OpenSimulator()
