@@ -1,22 +1,26 @@
 package template
 
 import (
+	"crypto/ecdh"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rsa"
 
 	"github.com/google/go-tpm/tpm2"
 )
 
-func EcdsaToTPMTPublic(pubkey *ecdsa.PublicKey, sha tpm2.TPMAlgID) *tpm2.TPMTPublic {
+func ECDHToTPMTPublic(pubkey *ecdh.PublicKey, sha tpm2.TPMAlgID) *tpm2.TPMTPublic {
 	var ecc tpm2.TPMECCCurve
-	switch pubkey.Curve {
-	case elliptic.P256():
+	switch pubkey.Curve() {
+	case ecdh.P256():
 		ecc = tpm2.TPMECCNistP256
-	case elliptic.P384():
+	case ecdh.P384():
 		ecc = tpm2.TPMECCNistP384
-	case elliptic.P521():
+	case ecdh.P521():
 		ecc = tpm2.TPMECCNistP521
+	}
+	x, y, err := tpm2.ECCPoint(pubkey)
+	if err != nil {
+		panic(err)
 	}
 	return &tpm2.TPMTPublic{
 		Type:    tpm2.TPMAlgECC,
@@ -39,14 +43,22 @@ func EcdsaToTPMTPublic(pubkey *ecdsa.PublicKey, sha tpm2.TPMAlgID) *tpm2.TPMTPub
 			tpm2.TPMAlgECC,
 			&tpm2.TPMSECCPoint{
 				X: tpm2.TPM2BECCParameter{
-					Buffer: pubkey.X.FillBytes(make([]byte, len(pubkey.X.Bytes()))),
+					Buffer: x.Bytes(),
 				},
 				Y: tpm2.TPM2BECCParameter{
-					Buffer: pubkey.Y.FillBytes(make([]byte, len(pubkey.Y.Bytes()))),
+					Buffer: y.Bytes(),
 				},
 			},
 		),
 	}
+}
+
+func EcdsaToTPMTPublic(pubkey *ecdsa.PublicKey, sha tpm2.TPMAlgID) *tpm2.TPMTPublic {
+	pk, err := pubkey.ECDH()
+	if err != nil {
+		panic(err)
+	}
+	return ECDHToTPMTPublic(pk, sha)
 }
 
 func RSAToTPMTPublic(pubkey *rsa.PublicKey, bits int) *tpm2.TPMTPublic {

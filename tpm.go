@@ -5,7 +5,6 @@ import (
 	"crypto"
 	"crypto/ecdh"
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/rsa"
 	"crypto/sha256"
 	"errors"
@@ -751,15 +750,18 @@ func DeriveECDH(sess *TPMSession, key *TPMKey, sessionkey *ecdh.PublicKey, owner
 		handle.Auth = tpm2.PasswordAuth(auth)
 	}
 
-	x, y := elliptic.Unmarshal(elliptic.P256(), sessionkey.Bytes())
+	x, y, err := tpm2.ECCPoint(sessionkey)
+	if err != nil {
+		return nil, err
+	}
 
 	// ECDHZGen command for the TPM, turns the sesion key into something we understand.
 	ecdhRsp, err := tpm2.ECDHZGen{
 		KeyHandle: *handle,
 		InPoint: tpm2.New2B(
 			tpm2.TPMSECCPoint{
-				X: tpm2.TPM2BECCParameter{Buffer: x.FillBytes(make([]byte, 32))},
-				Y: tpm2.TPM2BECCParameter{Buffer: y.FillBytes(make([]byte, 32))},
+				X: tpm2.TPM2BECCParameter{Buffer: x.Bytes()},
+				Y: tpm2.TPM2BECCParameter{Buffer: y.Bytes()},
 			},
 		),
 	}.Execute(sess.GetTPM(), sess.GetHMAC())

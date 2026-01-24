@@ -107,11 +107,15 @@ func createWrap(pub *tpm2.TPMTPublic, pk any, userauth []byte) (tpm2.TPM2BPublic
 	switch pk := pk.(type) {
 	case ecdsa.PrivateKey:
 		public = template.EcdsaToTPMTPublic(&pk.PublicKey, tpm2.TPMAlgSHA256)
+		bb, err := pk.Bytes()
+		if err != nil {
+			return tpm2.TPM2BPublic{}, nil, nil, err
+		}
 		sensitive = tpm2.TPMTSensitive{
 			SensitiveType: tpm2.TPMAlgECC,
 			Sensitive: tpm2.NewTPMUSensitiveComposite(
 				tpm2.TPMAlgECC,
-				&tpm2.TPM2BECCParameter{Buffer: pk.D.FillBytes(make([]byte, len(pk.D.Bytes())))},
+				&tpm2.TPM2BECCParameter{Buffer: bb},
 			),
 		}
 	case rsa.PrivateKey:
