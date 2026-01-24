@@ -39,7 +39,7 @@ func ToTPMPublic(pKey []byte) (*tpm2.TPMTPublic, error) {
 // FromTPMPublic takes a tpm2.TPMTPublic struct and transform it into a PKIX
 // ASN.1 structure
 func FromTPMPublic(pub *tpm2.TPMTPublic) ([]byte, error) {
-	pk, err := template.FromTPMPublicToPubkey(pub)
+	pk, err := tpm2.Pub(*pub)
 	if err != nil {
 		return nil, err
 	}
