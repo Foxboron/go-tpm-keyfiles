@@ -367,7 +367,6 @@ func Sign(sess *TPMSession, key *TPMKey, ownerauth, auth, digest []byte, digesta
 }
 
 func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo tpm2.TPMAlgID, keysize int, keyalgo tpm2.TPMAlgID, sess ...tpm2.Session) (*tpm2.TPMTSignature, error) {
-
 	// Seperate function to include our own sigscheme?
 	var sigscheme tpm2.TPMTSigScheme
 	switch keyalgo {
@@ -378,7 +377,7 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 	case tpm2.TPMAlgRSAPSS:
 		sigscheme = newRSAPSSSigScheme(digestalgo)
 	default:
-		return nil, fmt.Errorf("Unexpected key algorithm 0x%x", keyalgo)
+		return nil, fmt.Errorf("unexpected key algorithm 0x%x", keyalgo)
 	}
 
 	// If we encounter RSA with SHA512 keys we use TPM_Decrypt to sign
@@ -387,7 +386,7 @@ func TPMSign(tpm transport.TPMCloser, handle handle, digest []byte, digestalgo t
 		// TODO: Refactor this part
 		// Taken from crypto/rsa
 		pkcsPadding := func(hashed []byte, privkeySize int, h crypto.Hash) []byte {
-			var hashPrefixes = map[crypto.Hash][]byte{
+			hashPrefixes := map[crypto.Hash][]byte{
 				crypto.SHA256: {0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20},
 				crypto.SHA384: {0x30, 0x41, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x02, 0x05, 0x00, 0x04, 0x30},
 				crypto.SHA512: {0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40},
@@ -483,7 +482,7 @@ type handle interface {
 
 // Helper to flush handles
 func FlushHandle(tpm transport.TPM, h handle) {
-	//TODO: We should probably handle the error here
+	// TODO: We should probably handle the error here
 	flushSrk := tpm2.FlushContext{FlushHandle: h}
 	flushSrk.Execute(tpm)
 }

@@ -137,7 +137,6 @@ func TestSigning(t *testing.T) {
 			k, err := NewLoadableKey(tpm, c.keytype, c.bits, []byte(""),
 				WithUserAuth(c.pin),
 			)
-
 			if err != nil {
 				t.Fatalf("couldn't create new loadable key: %v", err)
 			}
