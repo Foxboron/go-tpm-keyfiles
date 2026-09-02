@@ -20,59 +20,57 @@ import (
 	"golang.org/x/crypto/hkdf"
 )
 
-var (
-	// If a permanent handle (MSO 0x40) is specified then the implementation MUST run
-	// TPM2_CreatePrimary on the handle using the TCG specified Elliptic Curve
-	// template [TCG-Provision] (section 7.5.1 for the Storage and other seeds or
-	// 7.4.1 for the endorsement seed) which refers to the TCG EK Credential Profile
-	// [TCG-EK-Profile] . Since there are several possible templates, implementations
-	// MUST always use the H template (the one with zero size unique fields). The
-	// template used MUST be H-2 (EK Credential Profile section B.4.5) for the NIST
-	// P-256 curve if rsaParent is absent or the H-1 (EK Credential Profile section
-	// B.4.4) RSA template with a key length of 2048 if rsaParent is present and true
-	// and use the primary key so generated as the parent.
-	ECCSRK_H2_Template = tpm2.TPMTPublic{
-		Type:    tpm2.TPMAlgECC,
-		NameAlg: tpm2.TPMAlgSHA256,
-		ObjectAttributes: tpm2.TPMAObject{
-			FixedTPM:            true,
-			FixedParent:         true,
-			SensitiveDataOrigin: true,
-			UserWithAuth:        true,
-			NoDA:                true,
-			Restricted:          true,
-			Decrypt:             true,
+// If a permanent handle (MSO 0x40) is specified then the implementation MUST run
+// TPM2_CreatePrimary on the handle using the TCG specified Elliptic Curve
+// template [TCG-Provision] (section 7.5.1 for the Storage and other seeds or
+// 7.4.1 for the endorsement seed) which refers to the TCG EK Credential Profile
+// [TCG-EK-Profile] . Since there are several possible templates, implementations
+// MUST always use the H template (the one with zero size unique fields). The
+// template used MUST be H-2 (EK Credential Profile section B.4.5) for the NIST
+// P-256 curve if rsaParent is absent or the H-1 (EK Credential Profile section
+// B.4.4) RSA template with a key length of 2048 if rsaParent is present and true
+// and use the primary key so generated as the parent.
+var ECCSRK_H2_Template = tpm2.TPMTPublic{
+	Type:    tpm2.TPMAlgECC,
+	NameAlg: tpm2.TPMAlgSHA256,
+	ObjectAttributes: tpm2.TPMAObject{
+		FixedTPM:            true,
+		FixedParent:         true,
+		SensitiveDataOrigin: true,
+		UserWithAuth:        true,
+		NoDA:                true,
+		Restricted:          true,
+		Decrypt:             true,
+	},
+	Parameters: tpm2.NewTPMUPublicParms(
+		tpm2.TPMAlgECC,
+		&tpm2.TPMSECCParms{
+			Symmetric: tpm2.TPMTSymDefObject{
+				Algorithm: tpm2.TPMAlgAES,
+				KeyBits: tpm2.NewTPMUSymKeyBits(
+					tpm2.TPMAlgAES,
+					tpm2.TPMKeyBits(128),
+				),
+				Mode: tpm2.NewTPMUSymMode(
+					tpm2.TPMAlgAES,
+					tpm2.TPMAlgCFB,
+				),
+			},
+			CurveID: tpm2.TPMECCNistP256,
 		},
-		Parameters: tpm2.NewTPMUPublicParms(
-			tpm2.TPMAlgECC,
-			&tpm2.TPMSECCParms{
-				Symmetric: tpm2.TPMTSymDefObject{
-					Algorithm: tpm2.TPMAlgAES,
-					KeyBits: tpm2.NewTPMUSymKeyBits(
-						tpm2.TPMAlgAES,
-						tpm2.TPMKeyBits(128),
-					),
-					Mode: tpm2.NewTPMUSymMode(
-						tpm2.TPMAlgAES,
-						tpm2.TPMAlgCFB,
-					),
-				},
-				CurveID: tpm2.TPMECCNistP256,
+	),
+	Unique: tpm2.NewTPMUPublicID(
+		tpm2.TPMAlgECC,
+		&tpm2.TPMSECCPoint{
+			X: tpm2.TPM2BECCParameter{
+				Buffer: make([]byte, 0),
 			},
-		),
-		Unique: tpm2.NewTPMUPublicID(
-			tpm2.TPMAlgECC,
-			&tpm2.TPMSECCPoint{
-				X: tpm2.TPM2BECCParameter{
-					Buffer: make([]byte, 0),
-				},
-				Y: tpm2.TPM2BECCParameter{
-					Buffer: make([]byte, 0),
-				},
+			Y: tpm2.TPM2BECCParameter{
+				Buffer: make([]byte, 0),
 			},
-		),
-	}
-)
+		},
+	),
+}
 
 // This is a helper to deal with TPM Session encryption.
 type TPMSession struct {

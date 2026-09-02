@@ -200,7 +200,7 @@ func TestChangeAuth(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed creating signer")
 			}
-			_, err = signer.Sign((io.Reader)(nil), b, crypto.SHA256)
+			_, err = signer.Sign(io.Reader(nil), b, crypto.SHA256)
 			if err != nil {
 				t.Fatalf("signing with correct pin should not fail: %v", err)
 			}
@@ -214,7 +214,7 @@ func TestChangeAuth(t *testing.T) {
 				t.Fatalf("failed creating signer")
 			}
 
-			_, err = signer.Sign((io.Reader)(nil), b, crypto.SHA256)
+			_, err = signer.Sign(io.Reader(nil), b, crypto.SHA256)
 			if err == nil {
 				t.Fatalf("old pin works on updated key")
 			}
@@ -223,7 +223,7 @@ func TestChangeAuth(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed creating signer")
 			}
-			_, err = signer.Sign((io.Reader)(nil), b, crypto.SHA256)
+			_, err = signer.Sign(io.Reader(nil), b, crypto.SHA256)
 			if err != nil {
 				t.Fatalf("new pin doesn't work: %v", err)
 			}
